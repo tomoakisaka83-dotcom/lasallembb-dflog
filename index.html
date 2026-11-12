@@ -162,7 +162,14 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
 .ftp{background:var(--soft);border:1.5px solid var(--gold);border-radius:12px;padding:10px;margin:10px 0}
 .chip.sm{min-height:34px;padding:4px 12px}
 .sg+.sg{border-top:1px dashed var(--line);margin-top:6px;padding-top:6px}
-@media print{header,.actions,.btn{display:none!important}}
+#printArea{display:none}
+@media print{header,.actions,.btn{display:none!important}
+ body.printing>*:not(#printArea){display:none!important}
+ body.printing #printArea{display:block}
+ body.printing{background:#fff!important}
+ body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ .card,tr{break-inside:avoid}.pbreak{break-after:page}.tw{overflow:visible!important}
+ .pdfhead{font-size:13px;margin-bottom:10px;color:#14213d;border-bottom:2px solid var(--gold);padding-bottom:6px}}
 </style>
 </head>
 <body>
@@ -174,6 +181,7 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
       <button class="btn sm" id="newGame">+ New game</button>
       <button class="btn sm" id="editGame">Edit</button>
       <button class="btn sm" id="custom">⚙ Customize</button>
+      <button class="btn sm" id="pdfBtn">⬇ PDF</button>
       <button class="btn sm" id="dataBtn">Data</button>
       <button class="btn sm" id="theme" title="Light / dark">Theme</button>
     </div>
@@ -666,6 +674,29 @@ function dataDialog(){
   $("#wipe").onclick=()=>{if(!confirm("Erase ALL games and settings from this browser? Download a backup first!"))return;if(!confirm("Really erase everything?"))return;S=fresh();save();syncInputs();$("#dlg").close();toast("Everything erased")};
 }
 $("#dataBtn").onclick=dataDialog;
+function pdfDialog(){
+  openDlg("Export PDF",`<div class="note" style="margin-bottom:10px">Pick a report. Your print window opens: choose <b>Save as PDF</b> as the printer, save it, then send the file to anyone.</div>
+  <div class="chips" style="flex-direction:column;align-items:stretch;gap:8px">
+   <button class="btn pri" data-pdf="full">Full game report (analysis + possession log)</button>
+   <button class="btn" data-pdf="game">Game analysis only</button>
+   <button class="btn" data-pdf="poss">Possession log only</button>
+   <button class="btn" data-pdf="season">Season report (selected games)</button></div>`);
+  $("#dlg").querySelectorAll("[data-pdf]").forEach(b=>b.onclick=()=>{$("#dlg").close();exportPdf(b.dataset.pdf)})}
+function exportPdf(kind){
+  const grab=(render,sel)=>{render();const d=document.createElement("div");d.innerHTML=$(sel).innerHTML;d.querySelectorAll(".checks").forEach(c=>c.closest(".card")?.remove());return d.innerHTML};
+  let h="",land=false;
+  if(kind==="game"||kind==="full")h+=grab(renderGame,"#p-game");
+  if(kind==="poss"||kind==="full"){if(kind==="full")h+='<div class="pbreak"></div>';h+=grab(renderPoss,"#p-poss");land=true}
+  if(kind==="season")h+=grab(renderSeason,"#p-season");
+  let pa=$("#printArea");if(!pa){pa=document.createElement("div");pa.id="printArea";document.body.appendChild(pa)}
+  pa.innerHTML=`<div class="pdfhead"><b>${esc(S.cfg.team)}</b> · Defensive possession report · ${new Date().toLocaleDateString()}</div>`+h;
+  const st=document.createElement("style");st.textContent=`@page{size:${land?"landscape":"portrait"};margin:10mm}`;document.head.appendChild(st);
+  const prev=document.documentElement.dataset.theme;document.documentElement.dataset.theme="light";
+  document.body.classList.add("printing");
+  const done=()=>{window.removeEventListener("afterprint",done);document.body.classList.remove("printing");st.remove();pa.innerHTML="";if(prev===undefined)document.documentElement.removeAttribute("data-theme");else document.documentElement.dataset.theme=prev};
+  window.addEventListener("afterprint",done);
+  setTimeout(()=>window.print(),150)}
+$("#pdfBtn").onclick=pdfDialog;
 
 /* ============ boot ============ */
 function playTable(segs,total){
