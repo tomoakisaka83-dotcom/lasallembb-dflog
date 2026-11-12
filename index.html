@@ -147,6 +147,21 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
 .grp>b{font-size:12px;letter-spacing:.05em;margin-bottom:8px}
 .grp .chips.blocks{grid-template-columns:repeat(auto-fill,minmax(84px,1fr))}
 .grp .chip:not(.on){background:var(--card)}
+/* ---- simple 3-color look: navy / gold / gray ---- */
+.chip.on,.chip.type.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chip:not(.on),.chip.type:not(.on){border-left:1.5px solid var(--line)}
+.pill{background:var(--accent);color:var(--accent-ink)}
+.pill.k-score{background:var(--gold);color:#14213d}
+.pill.k-neutral,.pill.k-jb,.pill.k-ft,.pill.x{background:var(--neu);color:#fff}
+.seg.s1,.seg.s3{border-left-color:var(--accent)}.seg.s2{border-left-color:var(--gold)}
+.chips.res-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:8px}
+.chip.res{justify-content:center;text-align:center;min-height:58px;font-weight:800;font-size:14px;border:1.5px solid var(--line)!important;background:var(--card);color:var(--ink)}
+.chip.res.k-score{background:var(--gold);border-color:var(--gold)!important;color:#14213d}
+.chip.res:active{transform:scale(.96)}
+.chip.play{min-height:64px;font-size:16px}
+.ftp{background:var(--soft);border:1.5px solid var(--gold);border-radius:12px;padding:10px;margin:10px 0}
+.chip.sm{min-height:34px;padding:4px 12px}
+.sg+.sg{border-top:1px dashed var(--line);margin-top:6px;padding-top:6px}
 @media print{header,.actions,.btn{display:none!important}}
 </style>
 </head>
@@ -164,9 +179,10 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
     </div>
   </div>
   <nav id="nav">
-    <button data-tab="log">1 · Game Log</button>
-    <button data-tab="game">2 · Game Analysis</button>
-    <button data-tab="season">3 · Season</button>
+    <button data-tab="log">1 · Log It</button>
+    <button data-tab="poss">2 · Possession Log</button>
+    <button data-tab="game">3 · Game Analysis</button>
+    <button data-tab="season">4 · Season</button>
   </nav>
 </header>
 
@@ -196,11 +212,10 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
       <label class="keep"><input type="checkbox" id="keep"> Keep DF selections after logging</label>
     </div>
 
-    <h2 style="margin-top:18px">Possession log</h2>
-    <div class="sub" style="margin-bottom:8px" id="logSub"></div>
-    <div id="logTable"></div>
+    <div id="playLive"></div>
   </section>
 
+  <section id="p-poss" hidden></section>
   <section id="p-game" hidden></section>
   <section id="p-season" hidden></section>
 </main>
@@ -219,7 +234,7 @@ const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth
 let toastT;function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("on"),2200)}
 
 /* ============ defaults & state ============ */
-const KINDS={stop:"Stop (opp. miss)",to:"Forced turnover",dreb:"Our def. rebound",score:"Opp. scored",orb:"Opp. off. rebound",foul:"Foul",neutral:"Neutral / other"};
+const KINDS={stop:"Stop (opp. miss)",to:"Forced turnover",dreb:"Our def. rebound",score:"Opp. scored",orb:"Opp. off. rebound",foul:"Foul",neutral:"Neutral / other",jb:"Jump ball (name it WON or LOST)"};
 const DEFAULT_CFG={
   team:"La Salle",drebAdded:true,colors:{groups:{},items:{},types:{},results:{}},
   dfTypes:["Man to Man DF","Zone DF","Press DF","Transition DF"],
@@ -237,20 +252,25 @@ const DEFAULT_CFG={
     "FOUL":{kind:"foul",pts:0},"FOUL-FT":{kind:"foul",pts:0},"ORB":{kind:"orb",pts:0},"OUT OF BOUNDS":{kind:"neutral",pts:0}
   }
 };
+const PLAYS=["Ball screen","ISO","Post up","Transition","Off ball action","Second chance"];
+const NEWRES=["3PT MAKE","2PT MAKE","3PT MISS","2PT MISS","FREE THROWS","BONUS FT","DEF REB","OFF REB","TURNOVER","OFF FOUL","NON-SHOOT FOUL","NO SHOT","JUMP BALL WON","JUMP BALL LOST"];
+const NEWMETA={"3PT MAKE":{kind:"score",pts:3},"2PT MAKE":{kind:"score",pts:2},"3PT MISS":{kind:"stop",pts:0},"2PT MISS":{kind:"stop",pts:0},"FREE THROWS":{kind:"neutral",pts:0},"BONUS FT":{kind:"neutral",pts:0},"DEF REB":{kind:"dreb",pts:0},"OFF REB":{kind:"orb",pts:0},"TURNOVER":{kind:"to",pts:0},"OFF FOUL":{kind:"to",pts:0,of:1},"NON-SHOOT FOUL":{kind:"foul",pts:0},"NO SHOT":{kind:"neutral",pts:0},"JUMP BALL WON":{kind:"jb",pts:0},"JUMP BALL LOST":{kind:"jb",pts:0}};
+Object.assign(DEFAULT_CFG.resultMeta,NEWMETA);DEFAULT_CFG.results=[...NEWRES];DEFAULT_CFG.playTypes=[...PLAYS];DEFAULT_CFG.v2=true;DEFAULT_CFG.v3=true;
 const KEY="dfPossLog.v1";
 const SAMPLE={"opp": "Loyola MD", "date": "2026-10-16", "poss": [{"id": "113", "half": "1", "clock": "24:41", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["X3"]}], "notes": ""}, {"id": "114", "half": "1", "clock": "24:03", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11", "DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["O2"]}], "notes": "BOOK CAN STEAL"}, {"id": "115", "half": "1", "clock": "23:19", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11", "DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["X2"]}], "notes": ""}, {"id": "116", "half": "1", "clock": "22:45", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11"], "results": ["FOUL"]}, {"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["O3"]}], "notes": ""}, {"id": "117", "half": "1", "clock": "21:58", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["X2"]}], "notes": ""}, {"id": "118", "half": "1", "clock": "21:41", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON"], "results": ["TO"]}], "notes": ""}, {"id": "119", "half": "1", "clock": "21:16", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON"], "results": ["O2"]}], "notes": ""}, {"id": "120", "half": "1", "clock": "20:36", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11"], "results": ["X2"]}], "notes": ""}, {"id": "121", "half": "1", "clock": "20:03", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["X3"]}], "notes": "BOOK SWITCH"}, {"id": "122", "half": "1", "clock": "", "segs": [{"types": [], "covs": [], "results": ["ORB", "O2"]}], "notes": ""}, {"id": "123", "half": "1", "clock": "18:55", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "POST TRAP DF::MONSTER"], "results": ["FOUL", "FT"]}], "notes": ""}, {"id": "124", "half": "1", "clock": "18:17", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11 FACE"], "results": ["O2"]}], "notes": ""}, {"id": "125", "half": "1", "clock": "17:56", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "BALL SCREEN DF::GOON"], "results": ["X3"]}], "notes": "SWITCH"}, {"id": "126", "half": "1", "clock": "17:29", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11", "DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["TO"]}], "notes": "STEAL"}, {"id": "127", "half": "1", "clock": "16:52", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11"], "results": ["X3"]}], "notes": ""}, {"id": "128", "half": "1", "clock": "16:16", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15"], "results": ["X2"]}], "notes": ""}, {"id": "129", "half": "1", "clock": "15:47", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "POST TRAP DF::MONSTER"], "results": ["TO"]}], "notes": "STEAL"}, {"id": "130", "half": "1", "clock": "15:15", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11"], "results": ["X3"]}], "notes": ""}, {"id": "131", "half": "1", "clock": "14:42", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15"], "results": []}, {"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["TO"]}], "notes": "SHOT CLOCK"}, {"id": "132", "half": "1", "clock": "13:55", "segs": [{"types": [], "covs": [], "results": ["FOUL", "FT"]}], "notes": ""}, {"id": "133", "half": "1", "clock": "13:05", "segs": [{"types": [], "covs": [], "results": ["TO"]}], "notes": ""}, {"id": "134", "half": "1", "clock": "12:42", "segs": [{"types": [], "covs": [], "results": ["TO"]}], "notes": ""}, {"id": "135", "half": "1", "clock": "12:08", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "BALL SCREEN DF::GOON"], "results": ["O2"]}], "notes": ""}, {"id": "136", "half": "1", "clock": "11:37", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "BALL SCREEN DF::GOON"], "results": ["OUT OF BOUNDS"]}, {"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["X3", "X2", "O3"]}], "notes": ""}, {"id": "137", "half": "1", "clock": "10:15", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "BALL SCREEN DF::GOON"], "results": []}, {"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["X3"]}], "notes": ""}, {"id": "138", "half": "1", "clock": "9:02", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["O2"]}], "notes": ""}, {"id": "139", "half": "1", "clock": "8:10", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::BIGFOOT"], "results": ["X3", "FOUL"]}], "notes": ""}, {"id": "140", "half": "1", "clock": "7:45", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON"], "results": ["ORB", "O2"]}], "notes": ""}, {"id": "141", "half": "1", "clock": "6:41", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::BIGFOOT"], "results": ["O2"]}], "notes": ""}, {"id": "142", "half": "1", "clock": "6:15", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15"], "results": ["TO"]}], "notes": ""}, {"id": "143", "half": "1", "clock": "5:45", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "POST TRAP DF::MONSTER"], "results": ["O2"]}], "notes": "NOAH DIDN'T GO MOSTER"}, {"id": "144", "half": "1", "clock": "4:29", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::BIGFOOT"], "results": ["O2"]}], "notes": ""}, {"id": "145", "half": "1", "clock": "3:18", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::2"], "results": ["O3"]}], "notes": ""}, {"id": "146", "half": "1", "clock": "2:42", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::2"], "results": ["O2"]}], "notes": ""}, {"id": "147", "half": "1", "clock": "1:24", "segs": [{"types": [], "covs": [], "results": ["O2"]}], "notes": ""}, {"id": "148", "half": "1", "clock": "0:48", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::2"], "results": ["TO"]}], "notes": ""}, {"id": "149", "half": "1", "clock": "0:24", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "POST TRAP DF::MONSTER"], "results": ["O2"]}], "notes": ""}, {"id": "213", "half": "2", "clock": "25:00", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["TO"]}], "notes": ""}, {"id": "214", "half": "2", "clock": "24:20", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["TO"]}], "notes": ""}, {"id": "215", "half": "2", "clock": "23:57", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11"], "results": ["TO"]}], "notes": ""}, {"id": "216", "half": "2", "clock": "", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11"], "results": ["AND1"]}], "notes": ""}, {"id": "217", "half": "2", "clock": "23:10", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11"], "results": ["X3"]}], "notes": ""}, {"id": "218", "half": "2", "clock": "23:00", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11"], "results": ["O3"]}], "notes": ""}, {"id": "219", "half": "2", "clock": "22:06", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11"], "results": []}], "notes": ""}, {"id": "220", "half": "2", "clock": "21:44", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11", "DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["TO"]}], "notes": "STEAL"}, {"id": "221", "half": "2", "clock": "21:23", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::BIGFOOT"], "results": ["X2"]}], "notes": ""}, {"id": "222", "half": "2", "clock": "20:54", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15"], "results": ["O2"]}], "notes": ""}, {"id": "223", "half": "2", "clock": "20:34", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15"], "results": ["O2"]}, {"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["X3"]}], "notes": ""}, {"id": "224", "half": "2", "clock": "20:02", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15"], "results": []}], "notes": ""}, {"id": "225", "half": "2", "clock": "19:28", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON"], "results": ["AND1"]}], "notes": ""}, {"id": "226", "half": "2", "clock": "18:55", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11", "DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["X3", "ORB"]}], "notes": "SUA REBOUND"}, {"id": "227", "half": "2", "clock": "17:43", "segs": [{"types": [], "covs": [], "results": ["TO"]}], "notes": ""}, {"id": "228", "half": "2", "clock": "17:15", "segs": [{"types": [], "covs": [], "results": ["O2"]}], "notes": ""}, {"id": "229", "half": "2", "clock": "16:46", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11", "DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["X3"]}], "notes": "DOCK DIDN'T GOON"}, {"id": "230", "half": "2", "clock": "16:08", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::BIGFOOT"], "results": ["X2"]}], "notes": ""}, {"id": "231", "half": "2", "clock": "15:20", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["X3", "ORB"]}], "notes": ""}, {"id": "232", "half": "2", "clock": "14:45", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "POST TRAP DF::FIRE"], "results": ["FOUL"]}, {"types": [], "covs": [], "results": ["TO"]}], "notes": ""}, {"id": "233", "half": "2", "clock": "13:48", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "BALL SCREEN DF::GOON"], "results": []}, {"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["TO"]}], "notes": ""}, {"id": "234", "half": "2", "clock": "13:02", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::3"], "results": ["O3"]}], "notes": ""}, {"id": "235", "half": "2", "clock": "12:21", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::3"], "results": ["O3"]}], "notes": ""}, {"id": "236", "half": "2", "clock": "11:35", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON"], "results": ["X2"]}], "notes": ""}, {"id": "237", "half": "2", "clock": "10:06", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": []}, {"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["X3", "ORB", "O2"]}], "notes": ""}, {"id": "238", "half": "2", "clock": "9:33", "segs": [{"types": ["Press DF"], "covs": ["FULL COURT DF::11"], "results": ["X3"]}], "notes": ""}, {"id": "239", "half": "2", "clock": "9:10", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": ["TO"]}], "notes": ""}, {"id": "240", "half": "2", "clock": "8:35", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": []}], "notes": ""}, {"id": "241", "half": "2", "clock": "7:55", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::14", "BALL SCREEN DF::GOON", "POST TRAP DF::FIRE"], "results": []}], "notes": ""}, {"id": "242", "half": "2", "clock": "7:20", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "POST TRAP DF::MONSTER"], "results": ["TO"]}], "notes": ""}, {"id": "243", "half": "2", "clock": "6:35", "segs": [{"types": [], "covs": [], "results": ["X2"]}], "notes": ""}, {"id": "244", "half": "2", "clock": "5:49", "segs": [{"types": [], "covs": [], "results": ["TO"]}], "notes": ""}, {"id": "245", "half": "2", "clock": "4:27", "segs": [{"types": ["Man to Man DF"], "covs": ["DF::15", "POST TRAP DF::MONSTER"], "results": []}], "notes": ""}, {"id": "246", "half": "2", "clock": "3:14", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::2"], "results": ["TO"]}], "notes": ""}, {"id": "247", "half": "2", "clock": "2:27", "segs": [{"types": ["Zone DF"], "covs": ["ZONE DF::2"], "results": ["O3"]}], "notes": ""}]};
-function migrateCfg(c){
+function migrateGames(gs){for(const g of gs)for(const p of g.poss)for(const sg of p.segs)if(sg.plays)sg.plays=sg.plays.map(t=>t==="OREB"?"Second chance":t)}
+function migrateCfg(c){if(!c.v2){c.v2=true;Object.assign(c.resultMeta,NEWMETA);c.results=[...NEWRES]}if(!c.v3){c.v3=true;c.playTypes=[...PLAYS]}c.playTypes=c.playTypes||[...PLAYS];
   c.colors=c.colors||{};for(const k of["groups","items","types","results"])c.colors[k]=c.colors[k]||{};
   if(!c.drebAdded){c.drebAdded=true;if(!c.resultMeta.DREB)c.resultMeta.DREB={kind:"dreb",pts:0};
     if(!c.results.includes("DREB")){const i=c.results.indexOf("X3");c.results.splice(i<0?c.results.length:i+1,0,"DREB")}}
   return c}
 const newGame=(opp,date)=>({id:uid(),opp:opp||"Opponent",date:date||today(),poss:[]});
-const emptySeg=()=>({types:[],covs:[],results:[]});
+const emptySeg=()=>({plays:[],types:[],covs:[],results:[]});
 const emptyDraft=()=>({half:"1",clock:"",segs:[emptySeg()],notes:"",editId:null});
 function fresh(){const g=newGame();return{cfg:clone(DEFAULT_CFG),games:[g],cur:g.id,draft:emptyDraft(),ui:{tab:"log",keep:false,theme:"auto",sel:null}}}
 function load(){
   try{const r=JSON.parse(localStorage.getItem(KEY));
-    if(r&&r.cfg&&Array.isArray(r.games)&&r.games.length){migrateCfg(r.cfg);r.draft=r.draft||emptyDraft();r.ui=Object.assign({tab:"log",keep:false,theme:"auto",sel:null},r.ui);
+    if(r&&r.cfg&&Array.isArray(r.games)&&r.games.length){migrateCfg(r.cfg);migrateGames(r.games);r.draft=r.draft||emptyDraft();migrateGames([{poss:[r.draft]}]);r.ui=Object.assign({tab:"log",keep:false,theme:"auto",sel:null},r.ui);
       if(!r.games.find(g=>g.id===r.cur))r.cur=r.games[0].id;return r}}catch(e){}
   return fresh()
 }
@@ -259,15 +279,16 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast("
 const G=()=>S.games.find(g=>g.id===S.cur);
 const gameName=g=>S.cfg.team+" vs "+g.opp;
 const gKey=(g,i)=>g+"::"+i;
-const rmeta=n=>S.cfg.resultMeta[n]||{kind:"neutral",pts:0};
+const FTRE=/^(FT|BONUS FT|AND-1 FT) (\d)\/(\d)$/;
+const rmeta=n=>{const f=FTRE.exec(n);if(f)return{kind:"ft",pts:+f[2],att:+f[3]};return S.cfg.resultMeta[n]||{kind:"neutral",pts:0}};
 const split=k=>{const i=k.indexOf("::");return i<0?{g:"",n:k}:{g:k.slice(0,i),n:k.slice(i+2)}};
 function hue(group){const i=S.cfg.coverages.findIndex(c=>c.group===group);if(i>=0)return[215,160,28,285,340,190,95,50][i%8];let h=0;for(const c of group)h=(h*31+c.charCodeAt(0))%360;return h}
 function hslHex(h,s,l){s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));const x=v=>Math.round(255*v).toString(16).padStart(2,"0");return"#"+x(f(0))+x(f(8))+x(f(4))}
 function textOn(hex){const n=parseInt(hex.slice(1),16),r=n>>16,g=(n>>8)&255,b=n&255;return(0.299*r+0.587*g+0.114*b)>165?"#14213d":"#fff"}
-const colStyle=hex=>`--c:${hex};--t:${textOn(hex)}`;
+const colStyle=hex=>"";
 const KIND_HEX={stop:"#1f8a4c",to:"#1f8a4c",dreb:"#1f8a4c",score:"#c0392b",orb:"#b7791f",foul:"#b9772c",neutral:"#6b7490"};
 const COL=()=>S.cfg.colors;
-const gcolor=g=>COL().groups[g]||hslHex(hue(g),55,40);
+const gcolor=g=>"var(--gold)";
 const kcolor=k=>COL().items[k]||gcolor(split(k).g);
 const tcolor=t=>COL().types[t]||"#14213d";
 const rcolor=r=>COL().results[r]||KIND_HEX[rmeta(r).kind]||"#6b7490";
@@ -281,8 +302,8 @@ function applyTheme(){const t=S.ui.theme;if(t==="auto")document.documentElement.
 $("#theme").onclick=()=>{const dark=matchMedia("(prefers-color-scheme:dark)").matches;const cur=S.ui.theme==="auto"?(dark?"dark":"light"):S.ui.theme;S.ui.theme=cur==="dark"?"light":"dark";applyTheme();save()};
 function setTab(t){S.ui.tab=t;save();
   for(const b of document.querySelectorAll("#nav button"))b.classList.toggle("on",b.dataset.tab===t);
-  $("#p-log").hidden=t!=="log";$("#p-game").hidden=t!=="game";$("#p-season").hidden=t!=="season";
-  if(t==="game")renderGame();if(t==="season")renderSeason();if(t==="log")renderLog();scrollTo(0,0)}
+  $("#p-log").hidden=t!=="log";$("#p-poss").hidden=t!=="poss";$("#p-game").hidden=t!=="game";$("#p-season").hidden=t!=="season";
+  if(t==="game")renderGame();if(t==="season")renderSeason();if(t==="log")renderLog();if(t==="poss")renderPoss();scrollTo(0,0)}
 $("#nav").onclick=e=>{const b=e.target.closest("button");if(b)setTab(b.dataset.tab)};
 
 /* ============ header: games ============ */
@@ -316,6 +337,13 @@ $("#dlg").addEventListener("close",()=>{renderAll()});
 /* ============ PAGE 1: entry form ============ */
 const D=()=>S.draft;
 function chip(label,on,attrs,cls="",style=""){return `<button type="button" class="chip ${cls} ${on?"on":""}" style="${style}" ${attrs}>${esc(label)}</button>`}
+function ftPanel(sg,i){
+  if(!sg.ft)return"";
+  const lab={FT:"FT",BONUS:"BONUS FT",AND1:"AND-1 FT"}[sg.ft];
+  const opts={FT:[[0,1],[1,1],[0,2],[1,2],[2,2],[0,3],[1,3],[2,3],[3,3]],BONUS:[[0,1],[1,1],[0,2],[1,2],[2,2]],AND1:[[0,1],[1,1]]}[sg.ft];
+  const tp=[["FT","Shooting FTs"],["BONUS","Bonus FTs"],["AND1","And-one FT"]];
+  return `<div class="ftp"><div class="chips">${tp.map(([k,t])=>`<button type="button" class="chip sm ${sg.ft===k?"on":""}" data-act="ftopen" data-seg="${i}" data-v="${k}">${t}</button>`).join("")}<button type="button" class="btn sm" data-act="ftclose" data-seg="${i}" style="margin-left:auto">✕ Close</button></div>
+  <div class="chips res-grid" style="margin-top:8px">${opts.map(([m,at])=>`<button type="button" class="chip res" data-act="ftadd" data-seg="${i}" data-v="${lab} ${m}/${at}">${m} of ${at} made</button>`).join("")}</div></div>`}
 function segHTML(sg,i){
   const a=(f,v)=>`data-act="tog" data-seg="${i}" data-f="${f}" data-v="${esc(v)}"`;
   const groups=S.cfg.coverages.map(c=>`<div class="grp" style="border-top-color:${gcolor(c.group)}"><b>${esc(c.group)}</b><div class="chips blocks">${
@@ -323,19 +351,20 @@ function segHTML(sg,i){
   const seq=sg.results.length?sg.results.map((r,j)=>`${j?'<span class="arrow">→</span>':""}<span class="tag">${resPill(r)}<button type="button" class="pill x" style="--c:var(--mute);border:0" data-act="rmres" data-seg="${i}" data-j="${j}" aria-label="Remove ${esc(r)}">✕</button></span>`).join(""):`<span class="sub">Tap results in order (e.g. X3 → ORB → O2)</span>`;
   const lbl=t=>`<label class="l" data-drag title="Drag to reorder"><span class="grip" aria-hidden="true">⋮⋮</span>${t}</label>`;
   const F={
+    plays:`<div class="field" data-field="plays">${lbl("Play type")}<div class="chips blocks">${S.cfg.playTypes.map(t=>chip(t,(sg.plays||[]).includes(t),a("plays",t),"type play")).join("")}</div></div>`,
     types:`<div class="field" data-field="types">${lbl("DF type")}
     <div class="chips blocks">${S.cfg.dfTypes.map(t=>chip(t,sg.types.includes(t),a("types",t),"type",typeStyle(t))).join("")}</div></div>`,
     covs:`<div class="field" data-field="covs">${lbl("DF coverage")}<div class="covs">${groups}</div></div>`,
     results:`<div class="field" data-field="results">${lbl("Result")}<div>
-    <div class="chips">${S.cfg.results.map(r=>`<button type="button" class="chip res k-${rmeta(r).kind}" style="${rStyle(r)}" data-act="addres" data-seg="${i}" data-v="${esc(r)}">${esc(r)}</button>`).join("")}</div>
-    <div class="seq">${seq}${sg.results.length?`<button type="button" class="btn sm" data-act="clrres" data-seg="${i}" style="margin-left:auto">Clear results</button>`:""}</div></div></div>`
+    <div class="chips res-grid">${S.cfg.results.map(r=>`<button type="button" class="chip res k-${rmeta(r).kind}" style="${rStyle(r)}" data-act="addres" data-seg="${i}" data-v="${esc(r)}">${esc(r)}</button>`).join("")}</div>
+    ${ftPanel(sg,i)}<div class="seq">${seq}${sg.results.length?`<button type="button" class="btn sm" data-act="clrres" data-seg="${i}" style="margin-left:auto">Clear results</button>`:""}</div></div></div>`
   };
   return `<div class="card seg s${i}">
-    ${i?'<div class="seg-h"><h3>2nd DF — after out of bounds / foul / new coverage</h3><button type="button" class="btn sm danger" data-act="rmseg">Remove</button></div>':""}
+    ${i?`<div class="seg-h"><h3>${["","2nd","3rd","4th"][i]} DF possession — after out of bounds / foul / new coverage</h3>${i===D().segs.length-1?'<button type="button" class="btn sm danger" data-act="rmseg">Remove</button>':""}</div>`:""}
     ${fieldOrder().map(k=>F[k]).join("")}
   </div>`}
-const FIELDS=["types","covs","results"];
-function fieldOrder(){const o=(S.ui.fieldOrder||[]).filter(k=>FIELDS.includes(k));return[...new Set([...o,...FIELDS])]}
+const FIELDS=["covs","results","plays"];
+function fieldOrder(){if(!S.ui.fo2){S.ui.fo2=1;delete S.ui.fieldOrder}const o=(S.ui.fieldOrder||[]).filter(k=>FIELDS.includes(k));return[...new Set([...o,...FIELDS])]}
 /* drag a field label to reorder DF type / DF coverage / Result (pointer events: works with mouse + touch) */
 $("#segs").addEventListener("pointerdown",e=>{
   const h=e.target.closest("[data-drag]");if(!h||e.button>0)return;
@@ -351,26 +380,29 @@ $("#segs").addEventListener("pointerdown",e=>{
     save();const y=scrollY;renderSegs();scrollTo(0,y)};
   h.addEventListener("pointermove",move);h.addEventListener("pointerup",up);h.addEventListener("pointercancel",up);
 });
-function needs2nd(){const d=D();if(d.segs.length>1)return false;return d.segs[0].results.some(r=>{const m=rmeta(r);return m.kind==="foul"||/out of bounds|oob/i.test(r)})}
+function needs2nd(){const d=D();if(d.segs.length>3)return false;return d.segs[d.segs.length-1].results.some(r=>{const m=rmeta(r);return m.kind==="foul"||/out of bounds|oob/i.test(r)})}
 function renderSegs(){
   const d=D();
-  $("#segs").innerHTML=d.segs.map(segHTML).join("")+(d.segs.length<2?`<button type="button" class="addseg ${needs2nd()?"hint":""}" data-act="addseg">+ Add 2nd DF type / coverage / result <span class="sub">(for out of bounds, foul, or a coverage change in the same possession)</span></button>`:"");
+  $("#segs").innerHTML=d.segs.map(segHTML).join("")+(d.segs.length<4?`<button type="button" class="addseg ${needs2nd()?"hint":""}" data-act="addseg">+ Add ${["2nd","3rd","4th"][d.segs.length-1]} DF possession <span class="sub">(for out of bounds, foul, or a coverage change in the same possession)</span></button>`:"");
   for(const b of document.querySelectorAll("#halfSel button"))b.classList.toggle("on",b.dataset.h===d.half);
   $("#logBtn").textContent=d.editId?"Update possession":"Log possession";
   $("#clearBtn").textContent=d.editId?"Cancel edit":"Clear";
 }
 $("#segs").addEventListener("click",e=>{
-  const b=e.target.closest("[data-act]");if(!b)return;const d=D();const sg=d.segs[+b.dataset.seg];
+  const b=e.target.closest("[data-act]");if(!b)return;const d=D();d.segs.forEach(x=>{x.plays=x.plays||[]});const sg=d.segs[+b.dataset.seg];
   switch(b.dataset.act){
     case "tog":{const arr=sg[b.dataset.f],v=b.dataset.v,i=arr.indexOf(v);i<0?arr.push(v):arr.splice(i,1);break}
-    case "addres":sg.results.push(b.dataset.v);break;
+    case "addres":{const v=b.dataset.v;if(v==="FREE THROWS")sg.ft=sg.ft==="FT"?null:"FT";else if(v==="BONUS FT")sg.ft=sg.ft==="BONUS"?null:"BONUS";else sg.results.push(v);break}
+    case "ftopen":sg.ft=b.dataset.v;break;
+    case "ftadd":sg.results.push(b.dataset.v);sg.ft=null;break;
+    case "ftclose":sg.ft=null;break;
     case "rmres":sg.results.splice(+b.dataset.j,1);break;
     case "clrres":sg.results=[];break;
     case "addseg":d.segs.push(emptySeg());break;
     case "rmseg":d.segs.pop();break;
   }
   save();const y=scrollY;renderSegs();scrollTo(0,y);
-  if(b.dataset.act==="addseg")setTimeout(()=>document.querySelector(".seg.s1")?.scrollIntoView({behavior:"smooth",block:"start"}),30);
+  if(b.dataset.act==="addseg")setTimeout(()=>[...document.querySelectorAll("#segs .seg")].pop()?.scrollIntoView({behavior:"smooth",block:"start"}),30);
 });
 $("#halfSel").onclick=e=>{const b=e.target.closest("button");if(!b)return;D().half=b.dataset.h;save();renderSegs()};
 let prevDigits="";
@@ -386,13 +418,13 @@ function syncInputs(){$("#clock").value=D().clock;prevDigits=D().clock.replace(/
 function cancelEdit(silent){S.draft=emptyDraft();save();syncInputs();renderSegs()}
 $("#clearBtn").onclick=()=>{const wasEdit=!!D().editId;const half=D().half;S.draft=emptyDraft();S.draft.half=half;save();syncInputs();renderSegs();toast(wasEdit?"Edit cancelled":"Cleared")};
 $("#logBtn").onclick=()=>{
-  const d=D();const segs=d.segs.filter(s=>s.types.length||s.covs.length||s.results.length).map(clone);
+  const d=D();const segs=d.segs.filter(s=>(s.plays&&s.plays.length)||s.types.length||s.covs.length||s.results.length).map(s=>{const c=clone(s);delete c.ft;return c});
   if(!segs.length&&!d.notes.trim()&&!d.clock){toast("Pick a DF type, coverage or result first");return}
   const p={id:d.editId||uid(),half:d.half,clock:d.clock,segs,notes:d.notes.trim()};
   const g=G();
   if(d.editId){const i=g.poss.findIndex(x=>x.id===d.editId);if(i>=0)g.poss[i]=p;else g.poss.push(p);toast("Possession updated")}
   else{g.poss.push(p);toast(`Logged #${g.poss.length}`)}
-  const keepSeg=S.ui.keep&&!d.editId?{types:[...d.segs[0].types],covs:[...d.segs[0].covs],results:[]}:emptySeg();
+  const keepSeg=S.ui.keep&&!d.editId?{plays:[],types:[...d.segs[0].types],covs:[...d.segs[0].covs],results:[]}:emptySeg();
   S.draft=emptyDraft();S.draft.half=d.half;S.draft.segs=[keepSeg];
   save();syncInputs();renderSegs();renderLog();
   if(!d.editId)$("#clock").focus({preventScroll:true});
@@ -403,7 +435,7 @@ function coverLine(sg){return sg.covs.length?`<div class="mini">${sg.covs.map(co
 function segCells(sg){
   if(!sg)return `<td></td><td></td><td></td>`;
   return `<td>${sg.types.map(t=>esc(t)).join("<br>")||'<span class="sub">—</span>'}</td><td>${coverLine(sg)}</td><td><div class="mini">${sg.results.map(r=>resPill(r)).join("")||'<span class="sub">—</span>'}</div></td>`}
-function renderLog(){
+function renderLogOld(){
   const g=G();const segs=segsOf([g]);const a=agg(segs.map(s=>s.ev));
   $("#live").innerHTML=kpiRow(a);
   $("#logSub").textContent=gameName(g)+" · "+g.date+" · newest first — tap a row's Edit to fix an entry";
@@ -413,42 +445,46 @@ function renderLog(){
     rows.map(({p,i})=>`<tr><td class="n">${i+1}</td><td>${p.half==="1"?"1st":p.half==="2"?"2nd":esc(p.half)}</td><td class="n"><b>${esc(p.clock||"—")}</b></td>${segCells(p.segs[0])}${segCells(p.segs[1])}<td>${esc(p.notes)}</td>
     <td style="white-space:nowrap"><button class="btn sm" data-edit="${p.id}">Edit</button> <button class="btn sm danger" data-del="${p.id}" aria-label="Delete">✕</button></td></tr>`).join("")}</tbody></table></div>`;
 }
-$("#logTable").addEventListener("click",e=>{
+document.addEventListener("click",e=>{if(!e.target.closest("#p-poss"))return;
   const g=G();
   const ed=e.target.closest("[data-edit]");
   if(ed){const p=g.poss.find(x=>x.id===ed.dataset.edit);if(!p)return;
     S.draft={half:p.half,clock:p.clock,segs:p.segs.length?clone(p.segs):[emptySeg()],notes:p.notes,editId:p.id};
-    save();syncInputs();renderSegs();scrollTo({top:0,behavior:"smooth"});toast("Editing possession — change it, then Update");return}
+    save();syncInputs();renderSegs();setTab("log");toast("Editing possession — change it, then Update");return}
   const dl=e.target.closest("[data-del]");
-  if(dl){if(!confirm("Delete this possession?"))return;g.poss=g.poss.filter(x=>x.id!==dl.dataset.del);if(D().editId===dl.dataset.del){S.draft=emptyDraft();syncInputs();renderSegs()}save();renderLog()}
+  if(dl){if(!confirm("Delete this possession?"))return;g.poss=g.poss.filter(x=>x.id!==dl.dataset.del);if(D().editId===dl.dataset.del){S.draft=emptyDraft();syncInputs();renderSegs()}save();renderPoss()}
 });
 
 /* ============ analytics core ============ */
 function evalSeg(sg){
-  let pts=0,state=null,to=0,foul=0,made=0,miss=0,orb=0,dreb=0;
-  for(const r of sg.results){const m=rmeta(r);
+  let pts=0,state=null,to=0,foul=0,made=0,miss=0,orb=0,dreb=0,sc2=0,ftm=0,fta=0,jbW=0,jbL=0,of=0,afterOrb=false;
+  for(const r of sg.results){const m=rmeta(r);let add=0;
     if(m.kind==="stop"){state="stop";miss++}
-    else if(m.kind==="to"){state="stop";to=1}
-    else if(m.kind==="score"){state="score";pts+=+m.pts||0;made++}
-    else if(m.kind==="orb"){orb++;if(state==="stop")state="orb"}
-    else if(m.kind==="foul")foul=1;else if(m.kind==="dreb"){state="stop";dreb++}}
-  return{pts,state,to,foul,made,miss,orb,dreb}}
+    else if(m.kind==="to"){state="stop";to=1;if(m.of)of++}
+    else if(m.kind==="score"){state="score";add=+m.pts||0;made++}
+    else if(m.kind==="ft"){add=m.pts;ftm+=m.pts;fta+=m.att;if(add)state="score"}
+    else if(m.kind==="orb"){orb++;afterOrb=true;if(state==="stop")state="orb"}
+    else if(m.kind==="foul")foul=1;
+    else if(m.kind==="dreb"){state="stop";dreb++}
+    else if(m.kind==="jb"){/WON/i.test(r)?jbW++:jbL++}
+    pts+=add;if(afterOrb)sc2+=add}
+  return{pts,state,to,foul,made,miss,orb,dreb,sc2,ftm,fta,jbW,jbL,of}}
 function segsOf(games){const out=[];for(const g of games)for(const p of g.poss)p.segs.forEach((sg,si)=>out.push({g,p,sg,si,ev:evalSeg(sg)}));return out}
-function agg(evs){const a={n:evs.length,pts:0,stop:0,score:0,to:0,foul:0,made:0,miss:0,orb:0,orbN:0,dreb:0};
-  for(const e of evs){a.pts+=e.pts;a.stop+=e.state==="stop"?1:0;a.score+=e.state==="score"?1:0;a.to+=e.to;a.foul+=e.foul;a.made+=e.made;a.miss+=e.miss;a.orb+=e.orb>0?1:0;a.orbN+=e.orb;a.dreb+=e.dreb}return a}
+function agg(evs){const a={n:evs.length,pts:0,stop:0,score:0,to:0,foul:0,made:0,miss:0,orb:0,orbN:0,dreb:0,sc2:0,ftm:0,fta:0,jbW:0,jbL:0,of:0};
+  for(const e of evs){a.pts+=e.pts;a.stop+=e.state==="stop"?1:0;a.score+=e.state==="score"?1:0;a.to+=e.to;a.foul+=e.foul;a.made+=e.made;a.miss+=e.miss;a.orb+=e.orb>0?1:0;a.orbN+=e.orb;a.dreb+=e.dreb;a.sc2+=e.sc2;a.ftm+=e.ftm;a.fta+=e.fta;a.jbW+=e.jbW;a.jbL+=e.jbL;a.of+=e.of}return a}
 const ppp=a=>a.n?a.pts/a.n:null;
 const fx=v=>v==null?"—":v.toFixed(2);
 const pc=v=>v==null?"—":(Math.round(v*1000)/10)+"%";
 const fg=a=>a.made+a.miss?a.made/(a.made+a.miss):null;
 function groupBy(items,fn){const m=new Map();for(const it of items){for(const k of new Set(fn(it))){if(!m.has(k))m.set(k,[]);m.get(k).push(it.ev)}}return m}
-function kpiRow(a){const rb=a.dreb+a.orbN;return kpis([["Possessions",a.n],["PPP",fx(ppp(a))],["Total points",a.pts],["FG%",pc(fg(a))],["Turnovers",a.to],["TO%",pc(a.n?a.to/a.n:null)],["DREB",a.dreb],["DREB%",pc(rb?a.dreb/rb:null)],["OREB allowed",a.orbN]])}
+function kpiRow(a){const rb=a.dreb+a.orbN;return kpis([["Possessions",a.n],["PPP",fx(ppp(a))],["Total points",a.pts],["FG%",pc(fg(a))],["Turnovers",a.to],["TO%",pc(a.n?a.to/a.n:null)],["DREB",a.dreb],["DREB%",pc(rb?a.dreb/rb:null)],["Def stop %",pc(a.n?a.stop/a.n:null)],["OREB allowed",a.orbN],["2nd-chance pts",a.sc2],["FT made/att",a.ftm+"/"+a.fta],["Jump balls W-L",a.jbW+"-"+a.jbL],["Off. fouls",a.of]])}
 const kpis=arr=>arr.map(([l,v])=>`<div class="kpi"><b>${v}</b><span>${esc(l)}</span></div>`).join("");
 
 function table(title,rows,total,{head="",note="",max=0}={}){
   if(!rows.length)return `<div class="card"><h3>${esc(title)}</h3><div class="sub">No data yet.</div></div>`;
   const shown=max?rows.slice(0,max):rows;
-  return `<div class="card"><h3>${esc(title)}</h3>${note?`<div class="sub" style="margin:-4px 0 8px">${note}</div>`:""}<div class="tw"><table><thead><tr><th>${esc(head)}</th><th class="n">Poss</th><th class="n">% of poss</th><th class="n">PPP</th><th class="n">Stop %</th><th class="n">TO %</th><th class="n">Opp FG%</th></tr></thead><tbody>${
-   shown.map(r=>{const a=r.a,sh=total?a.n/total:0;return `<tr><td>${r.html}</td><td class="n">${a.n}</td><td class="n">${pc(sh)}<span class="bar" style="width:${Math.round(sh*60)}px"></span></td><td class="n"><b>${fx(ppp(a))}</b></td><td class="n">${pc(a.n?a.stop/a.n:null)}</td><td class="n">${pc(a.n?a.to/a.n:null)}</td><td class="n">${pc(fg(a))}</td></tr>`}).join("")}</tbody></table></div></div>`}
+  return `<div class="card"><h3>${esc(title)}</h3>${note?`<div class="sub" style="margin:-4px 0 8px">${note}</div>`:""}<div class="tw"><table><thead><tr><th>${esc(head)}</th><th class="n">Poss</th><th class="n">Stops</th><th class="n">% of poss</th><th class="n">PPP</th><th class="n">Def Stop %</th><th class="n">TO %</th><th class="n">Opp FG%</th></tr></thead><tbody>${
+   shown.map(r=>{const a=r.a,sh=total?a.n/total:0;return `<tr><td>${r.html}</td><td class="n">${a.n}</td><td class="n">${a.stop}</td><td class="n">${pc(sh)}<span class="bar" style="width:${Math.round(sh*60)}px"></span></td><td class="n"><b>${fx(ppp(a))}</b></td><td class="n">${pc(a.n?a.stop/a.n:null)}</td><td class="n">${pc(a.n?a.to/a.n:null)}</td><td class="n">${pc(fg(a))}</td></tr>`}).join("")}</tbody></table></div></div>`}
 
 function covOrder(k){const{g,n}=split(k);const gi=S.cfg.coverages.findIndex(c=>c.group===g);const ii=gi<0?-1:S.cfg.coverages[gi].items.indexOf(n);return(gi<0?99:gi)*100+(ii<0?99:ii)}
 function comboKey(sg){return[...sg.covs].sort((a,b)=>covOrder(a)-covOrder(b))}
@@ -460,31 +496,26 @@ function analysisHTML(games,{showTrend=false}={}){
   const all=agg(segs.map(s=>s.ev));
   const two=games.reduce((s,g)=>s+g.poss.filter(p=>p.segs.length>1).length,0);
   let h=`<div class="stats">${kpiRow(all)}</div>`;
-  h+=`<div class="note" style="margin:-6px 0 12px">Possession = one DF type / coverage / result block; a possession with a 2nd block (out of bounds, foul, coverage change) counts as two. PPP = points allowed ÷ possessions. FG% = opponent FG%. TO% = turnovers ÷ possessions. DREB% = DREB ÷ (DREB + opp. OREB). Tables: Stop % = possessions that ended in a miss, rebound or turnover. Result values (points, stop/score) come from ⚙ Customize.</div>`;
+  h+=`<div class="note" style="margin:-6px 0 12px">Possession = one DF type / coverage / result block; a possession with a 2nd block (out of bounds, foul, coverage change) counts as two. PPP = points allowed ÷ possessions. FG% = opponent FG%. TO% = turnovers ÷ possessions. DREB% = DREB ÷ (DREB + opp. OREB). Tables: Defensive Stop % = defensive stops ÷ defensive possessions × 100 (a stop = a miss, defensive rebound or turnover). Result values (points, stop/score) come from ⚙ Customize.</div>`;
   /* results distribution */
   const rc=new Map();for(const s of segs)for(const r of s.sg.results)rc.set(r,(rc.get(r)||0)+1);
   const rmax=Math.max(1,...rc.values());
   const rorder=[...new Set([...S.cfg.results,...rc.keys()])].filter(r=>rc.has(r));
   const resHTML=`<div class="card"><h3>Results breakdown</h3>${rorder.map(r=>`<div class="rbar"><span>${resPill(r)}</span><div class="t"><i class="k-${rmeta(r).kind}" style="${rStyle(r)};width:${rc.get(r)/rmax*100}%"></i></div><b style="text-align:right">${rc.get(r)} <span class="sub">${pc(rc.get(r)/all.n)}</span></b></div>`).join("")}<div class="note" style="margin-top:6px">% = share of DF possessions that included this result.</div></div>`;
-  /* by type */
-  const bt=groupBy(segs,s=>s.sg.types.length?s.sg.types:["(no type picked)"]);
-  const typeRows=[...bt].sort(bySize).map(([k,e])=>({html:`<b>${esc(k)}</b>`,a:agg(e)}));
-  /* by group */
-  const bg=groupBy(segs,s=>s.sg.covs.length?s.sg.covs.map(c=>split(c).g):["(no coverage picked)"]);
-  const grpRows=[...bg].sort(bySize).map(([k,e])=>({html:`<span class="pill" style="${colStyle(gcolor(k))}">${esc(k)}</span>`,a:agg(e)}));
-  /* by item */
-  const bc=groupBy(segs,s=>s.sg.covs);
-  const itemRows=[...bc].sort((a,b)=>covOrder(a[0])-covOrder(b[0])).map(([k,e])=>({html:`${covPill(k)} <span class="sub">${esc(split(k).g)}</span>`,a:agg(e)}));
-  /* combos */
-  const bk=groupBy(segs,s=>[s.sg.covs.length?comboKey(s.sg).map(k=>split(k).n).join(" + "):"(no coverage picked)"]);
-  const comboRows=[...bk].sort(bySize).map(([k,e])=>({html:`<b>${esc(k)}</b>`,a:agg(e)}));
-  /* by half */
+  const inG=(k,g)=>split(k).g.toUpperCase()===g;
+  const itemTable=(title,g,note)=>{
+    const m=groupBy(segs.filter(s=>s.sg.covs.some(k=>inG(k,g))),s=>s.sg.covs.filter(k=>inG(k,g)));
+    const rows=[...m].sort((x,y)=>covOrder(x[0])-covOrder(y[0])).map(([k,e])=>({html:covPill(k),a:agg(e)}));
+    return table(title,rows,all.n,{head:"Coverage",note})};
+  const mid=["DF","BALL SCREEN DF","POST TRAP DF"],isMid=k=>mid.some(g=>inG(k,g));
+  const bm=groupBy(segs.filter(s=>s.sg.covs.some(isMid)),s=>[comboKey(s.sg).filter(isMid).join("|")]);
+  const midRows=[...bm].sort(bySize).map(([k,e])=>({html:k.split("|").map(covPill).join(" + "),a:agg(e)}));
   const bh=groupBy(segs,s=>[s.p.half==="1"?"1st half":s.p.half==="2"?"2nd half":s.p.half]);
   const halfRows=[...bh].sort((a,b)=>a[0]<b[0]?-1:1).map(([k,e])=>({html:`<b>${esc(k)}</b>`,a:agg(e)}));
-  h+=`<div class="cols">${table("DF type — what we actually guarded",typeRows,all.n,{head:"DF type"})}${resHTML}</div>`;
-  h+=table("DF coverage — by group",grpRows,all.n,{head:"Group",note:"A possession counts once for each group it used."});
-  h+=table("DF coverage — by individual coverage",itemRows,all.n,{head:"Coverage",note:"Possessions that used this coverage (alone or combined with others)."});
-  h+=table("Coverage combinations",comboRows,all.n,{head:"Combination",max:15,note:"Exact coverage packages used on a possession (top 15)."});
+  h+=`<div class="cols">${playTable(segs,all.n)}${resHTML}</div>`;
+  h+=itemTable("Full court DF","FULL COURT DF","Possessions that used each full-court coverage (e.g. 11, 11 FACE), alone or combined with half-court calls.");
+  h+=table("DF + Ball screen DF + Post trap DF combinations",midRows,all.n,{head:"Combination",note:"Exact half-court packages: DF call + ball screen coverage + post trap coverage."});
+  h+=itemTable("Zone DF","ZONE DF","Possessions in each zone coverage.");
   h+=table("By half",halfRows,all.n,{head:"Half"});
   /* 2nd DF */
   const twoPs=games.flatMap(g=>g.poss.filter(p=>p.segs.length>1));
@@ -539,10 +570,10 @@ $("#p-season").addEventListener("click",e=>{if(e.target.id==="allG"){S.ui.sel=S.
 /* ============ Customize ============ */
 function customDialog(){
   const c=S.cfg;
-  const cpick=(kind,key,hex,has)=>`<input type="color" class="cp" value="${hex}" data-col="${kind}" data-k="${esc(key)}" title="Change color">${has?`<button class="pill x" style="--c:rgba(0,0,0,.35);border:0" data-c="rstcol" data-kind="${kind}" data-k="${esc(key)}" title="Reset color">↺</button>`:""}`;
+  const cpick=()=>"";const cpickOld=(kind,key,hex,has)=>`<input type="color" class="cp" value="${hex}" data-col="${kind}" data-k="${esc(key)}" title="Change color">${has?`<button class="pill x" style="--c:rgba(0,0,0,.35);border:0" data-c="rstcol" data-kind="${kind}" data-k="${esc(key)}" title="Reset color">↺</button>`:""}`;
   const grip=`<span class="sgrip" data-grip title="Drag to reorder" aria-hidden="true">⋮⋮</span>`;
   const html=`
-  <div class="sub" style="margin-bottom:10px">Drag the ⋮⋮ handle to reorder DF types, coverage groups, coverages and results. Tap any color swatch to change that button's color (↺ resets it). A group's color applies to all its coverages unless you color a single coverage. Add or remove options any time. Removing an option only hides it from the buttons — everything already logged stays in your data and analytics.</div>
+  <div class="sub" style="margin-bottom:10px">Drag the ⋮⋮ handle to reorder DF types, coverage groups, coverages and results. Add or remove options any time. Removing an option only hides it from the buttons — everything already logged stays in your data and analytics.</div>
   <h3>Team name</h3><div class="inl" style="margin-top:0"><input type="text" id="cTeam" value="${esc(c.team)}"><button class="btn" data-c="team">Save</button></div>
   <h3 style="margin-top:18px">DF types</h3><div class="chips" data-sort="types">${c.dfTypes.map((t,i)=>`<span class="chip type on" data-i="${i}" style="${colStyle(tcolor(t))};min-height:34px;padding:4px 6px 4px 4px">${grip}${cpick("types",t,tcolor(t),COL().types[t])}${esc(t)} <button class="pill x" style="--c:rgba(0,0,0,.35);border:0" data-c="rmtype" data-i="${i}">✕</button></span>`).join("")}</div>
   <div class="inl"><input type="text" id="cType" placeholder="New DF type, e.g. 1-3-1 Zone"><button class="btn" data-c="addtype">Add type</button></div>
@@ -603,12 +634,12 @@ $("#dlg").addEventListener("click",e=>{
 function download(name,text,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 const csvEsc=s=>{s=String(s??"");return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
 function csvFor(games){
-  const head=["Game","Date","Opponent","Poss #","Half","Clock","DF block","DF type","DF coverage","Results","Points allowed","Outcome","Notes"];
+  const head=["Game","Date","Opponent","Poss #","Half","Clock","DF block","Play type","DF type","DF coverage","Results","Points allowed","Outcome","Notes"];
   const rows=[head];
   for(const g of games)g.poss.forEach((p,i)=>{
     const base=[gameName(g),g.date,g.opp,i+1,p.half,p.clock];
-    if(!p.segs.length)rows.push([...base,"","","","","","",p.notes]);
-    p.segs.forEach((sg,si)=>{const ev=evalSeg(sg);rows.push([...base,si+1,sg.types.join(" + "),sg.covs.map(k=>split(k).n).join(" + "),sg.results.join(" > "),ev.pts,ev.state||"",si?"":p.notes])})});
+    if(!p.segs.length)rows.push([...base,"","","","","","","",p.notes]);
+    p.segs.forEach((sg,si)=>{const ev=evalSeg(sg);rows.push([...base,si+1,(sg.plays||[]).join(" + "),sg.types.join(" + "),sg.covs.map(k=>split(k).n).join(" + "),sg.results.join(" > "),ev.pts,ev.state||"",si?"":p.notes])})});
   return rows.map(r=>r.map(csvEsc).join(",")).join("\n")}
 function dataDialog(){
   openDlg("Data & backup",`
@@ -626,7 +657,7 @@ function dataDialog(){
   $("#restore").onchange=async e=>{const f=e.target.files[0];if(!f)return;
     try{const j=JSON.parse(await f.text());const st=j.state||j;if(!st.cfg||!Array.isArray(st.games))throw 0;
       if(!confirm(`Restore backup with ${st.games.length} game(s)? This replaces what's currently in this browser.`))return;
-      S.cfg=migrateCfg(st.cfg);S.games=st.games.length?st.games:[newGame()];S.cur=S.games[0].id;S.draft=emptyDraft();S.ui.sel=null;save();syncInputs();$("#dlg").close();toast("Backup restored")}
+      S.cfg=migrateCfg(st.cfg);migrateGames(st.games);S.games=st.games.length?st.games:[newGame()];S.cur=S.games[0].id;S.draft=emptyDraft();S.ui.sel=null;save();syncInputs();$("#dlg").close();toast("Backup restored")}
     catch(err){toast("That file isn't a valid backup")}};
   $("#sample").onclick=()=>{if(!SAMPLE){toast("No sample bundled");return}
     const g={id:uid(),opp:SAMPLE.opp,date:SAMPLE.date,poss:clone(SAMPLE.poss)};
@@ -637,7 +668,23 @@ function dataDialog(){
 $("#dataBtn").onclick=dataDialog;
 
 /* ============ boot ============ */
-function renderAll(){renderHeader();renderSegs();renderLog();if(S.ui.tab==="game")renderGame();if(S.ui.tab==="season")renderSeason()}
+function playTable(segs,total){
+  const bp=groupBy(segs,s=>(s.sg.plays&&s.sg.plays.length)?s.sg.plays:["(no play picked)"]);
+  const ord=k=>{const i=S.cfg.playTypes.indexOf(k);return i<0?99:i};
+  const rows=[...bp].sort((a,b)=>ord(a[0])-ord(b[0])||b[1].length-a[1].length).map(([k,e])=>({html:`<b>${esc(k)}</b>`,a:agg(e)}));
+  return table("PPP by play call",rows,total,{head:"Play",note:"PPP and Defensive Stop % (stops ÷ defensive possessions × 100) for each opponent play type."})}
+function renderLog(){const g=G();const segs=segsOf([g]);const a=agg(segs.map(s=>s.ev));
+  $("#live").innerHTML=kpiRow(a);$("#playLive").innerHTML=playTable(segs,a.n)}
+function renderPoss(){
+  const g=G(),el=$("#p-poss");
+  const h=`<h2>${esc(gameName(g))} — Possession log</h2><div class="sub" style="margin-bottom:12px">${esc(g.date)} · every possession in order, earliest first. Run PPP updates down the list. Tap Edit to fix one.</div>`;
+  if(!g.poss.length){el.innerHTML=h+`<div class="card empty">No possessions logged yet. Go to <b>Log It</b> to add one.</div>`;return}
+  let n=0,pts=0;
+  const seg=(p,fn)=>p.segs.length?p.segs.map(sg=>`<div class="sg">${fn(sg)}</div>`).join(""):'<span class="sub">—</span>';
+  const rows=g.poss.map((p,i)=>{const evs=p.segs.map(evalSeg);n+=evs.length;const pp=evs.reduce((t,e)=>t+e.pts,0);pts+=pp;
+    return `<tr><td class="n">${i+1}</td><td>${p.half==="1"?"1st":p.half==="2"?"2nd":esc(p.half)}</td><td class="n"><b>${esc(p.clock||"—")}</b></td><td>${seg(p,coverLine)}</td><td>${seg(p,sg=>`<div class="mini">${sg.results.map(r=>resPill(r)).join("")||"—"}</div>`)}</td><td>${seg(p,sg=>esc((sg.plays||[]).join(", "))||"—")}</td><td class="n"><b>${pp}</b></td><td class="n">${n?fx(pts/n):"—"}</td><td>${esc(p.notes)}</td><td style="white-space:nowrap"><button class="btn sm" data-edit="${p.id}">Edit</button> <button class="btn sm danger" data-del="${p.id}" aria-label="Delete">✕</button></td></tr>`}).join("");
+  el.innerHTML=h+`<div class="tw"><table><thead><tr><th class="n">#</th><th>Half</th><th>Clock</th><th>Coverage</th><th>Result</th><th>Play</th><th class="n">Pts</th><th class="n">Run PPP</th><th>Notes</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`}
+function renderAll(){renderHeader();renderSegs();renderLog();if(S.ui.tab==="poss")renderPoss();if(S.ui.tab==="game")renderGame();if(S.ui.tab==="season")renderSeason()}
 applyTheme();syncInputs();renderAll();setTab(S.ui.tab);
 if("serviceWorker" in navigator){/* intentionally none: single static file */}
 </script>
