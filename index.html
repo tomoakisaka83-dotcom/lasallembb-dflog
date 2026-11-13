@@ -206,6 +206,7 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
         <div><label class="l" style="margin-top:0">Game clock</label>
           <input id="clock" class="clock" type="text" inputmode="numeric" autocomplete="off" placeholder="0:00" aria-label="Game clock"></div>
       </div>
+      <div id="afterRow"></div>
     </div>
 
     <div id="segs"></div>
@@ -275,7 +276,7 @@ function migrateCfg(c){if(!c.v2){c.v2=true;Object.assign(c.resultMeta,NEWMETA);c
   return c}
 const newGame=(opp,date)=>({id:uid(),opp:opp||"Opponent",date:date||today(),poss:[]});
 const emptySeg=()=>({plays:[],types:[],covs:[],results:[]});
-const emptyDraft=()=>({half:"1",clock:"",segs:[emptySeg()],notes:"",editId:null});
+const emptyDraft=()=>({half:"1",clock:"",segs:[emptySeg()],notes:"",editId:null,after:null});
 function fresh(){const g=newGame();return{cfg:clone(DEFAULT_CFG),games:[g],cur:g.id,draft:emptyDraft(),ui:{tab:"log",keep:false,theme:"auto",sel:null}}}
 function load(){
   try{const r=JSON.parse(localStorage.getItem(KEY));
@@ -394,6 +395,9 @@ function renderSegs(){
   const d=D();
   $("#segs").innerHTML=d.segs.map(segHTML).join("")+(d.segs.length<4?`<button type="button" class="addseg ${needs2nd()?"hint":""}" data-act="addseg">+ Add ${["2nd","3rd","4th"][d.segs.length-1]} DF possession <span class="sub">(for out of bounds, foul, or a coverage change in the same possession)</span></button>`:"");
   for(const b of document.querySelectorAll("#halfSel button"))b.classList.toggle("on",b.dataset.h===d.half);
+  {const g=G();const hl=h=>h==="1"?"1st":h==="2"?"2nd":h;const cur=d.after||"";
+   const o=[["","At the end of the log (live game)"],["start","At the very start"],...g.poss.map((p,i)=>[p.id,`After #${i+1} · ${hl(p.half)} · ${p.clock||"no clock"}`])];
+   $("#afterRow").innerHTML=d.editId?"":`<label class="l" for="afterSel">Where does this possession go?</label><select id="afterSel" style="width:100%">${o.map(([v,t])=>`<option value="${v}" ${v===cur?"selected":""}>${esc(t)}</option>`).join("")}</select>`}
   $("#logBtn").textContent=d.editId?"Update possession":"Log possession";
   $("#clearBtn").textContent=d.editId?"Cancel edit":"Clear";
 }
@@ -422,19 +426,21 @@ $("#clock").addEventListener("input",e=>{
   e.target.value=digits.length>2?digits.slice(0,-2)+":"+digits.slice(-2):digits;
   D().clock=e.target.value;save()});
 $("#notes").addEventListener("input",e=>{D().notes=e.target.value;save()});
+document.addEventListener("change",e=>{if(e.target.id!=="afterSel")return;const d=D();d.after=e.target.value||null;const p=G().poss.find(x=>x.id===d.after);if(d.after==="start")d.half="1";else if(p)d.half=p.half;save();renderSegs()});
 $("#keep").addEventListener("change",e=>{S.ui.keep=e.target.checked;save()});
 function syncInputs(){$("#clock").value=D().clock;prevDigits=D().clock.replace(/\D/g,"");$("#notes").value=D().notes;$("#keep").checked=!!S.ui.keep}
 function cancelEdit(silent){S.draft=emptyDraft();save();syncInputs();renderSegs()}
-$("#clearBtn").onclick=()=>{const wasEdit=!!D().editId;const half=D().half;S.draft=emptyDraft();S.draft.half=half;save();syncInputs();renderSegs();toast(wasEdit?"Edit cancelled":"Cleared")};
+$("#clearBtn").onclick=()=>{const wasEdit=!!D().editId;const half=D().half,aft=wasEdit?null:D().after;S.draft=emptyDraft();S.draft.half=half;S.draft.after=aft;save();syncInputs();renderSegs();toast(wasEdit?"Edit cancelled":"Cleared")};
 $("#logBtn").onclick=()=>{
   const d=D();const segs=d.segs.filter(s=>(s.plays&&s.plays.length)||s.types.length||s.covs.length||s.results.length).map(s=>{const c=clone(s);delete c.ft;return c});
   if(!segs.length&&!d.notes.trim()&&!d.clock){toast("Pick a DF type, coverage or result first");return}
   const p={id:d.editId||uid(),half:d.half,clock:d.clock,segs,notes:d.notes.trim()};
   const g=G();
   if(d.editId){const i=g.poss.findIndex(x=>x.id===d.editId);if(i>=0)g.poss[i]=p;else g.poss.push(p);toast("Possession updated")}
-  else{g.poss.push(p);toast(`Logged #${g.poss.length}`)}
+  else{let idx=g.poss.length;if(d.after==="start")idx=0;else if(d.after){const i=g.poss.findIndex(x=>x.id===d.after);if(i>=0)idx=i+1}
+    g.poss.splice(idx,0,p);toast(idx===g.poss.length-1?`Logged #${idx+1}`:`Inserted as #${idx+1}`)}
   const keepSeg=S.ui.keep&&!d.editId?{plays:[],types:[...d.segs[0].types],covs:[...d.segs[0].covs],results:[]}:emptySeg();
-  S.draft=emptyDraft();S.draft.half=d.half;S.draft.segs=[keepSeg];
+  S.draft=emptyDraft();S.draft.half=d.half;S.draft.segs=[keepSeg];if(d.after&&!d.editId)S.draft.after=p.id;
   save();syncInputs();renderSegs();renderLog();
   if(!d.editId)$("#clock").focus({preventScroll:true});
 };
@@ -701,8 +707,19 @@ function renderPoss(){
   let n=0,pts=0;
   const seg=(p,fn)=>p.segs.length?p.segs.map(sg=>`<div class="sg">${fn(sg)}</div>`).join(""):'<span class="sub">—</span>';
   const rows=g.poss.map((p,i)=>{const evs=p.segs.map(evalSeg);n+=evs.length;const pp=evs.reduce((t,e)=>t+e.pts,0);pts+=pp;
-    return `<tr><td class="n">${i+1}</td><td>${p.half==="1"?"1st":p.half==="2"?"2nd":esc(p.half)}</td><td class="n"><b>${esc(p.clock||"—")}</b></td><td>${seg(p,coverLine)}</td><td>${seg(p,sg=>`<div class="mini">${sg.results.map(r=>resPill(r)).join("")||"—"}</div>`)}</td><td>${seg(p,sg=>esc((sg.plays||[]).join(", "))||"—")}</td><td class="n"><b>${pp}</b></td><td class="n">${n?fx(pts/n):"—"}</td><td>${esc(p.notes)}</td><td style="white-space:nowrap"><button class="btn sm" data-edit="${p.id}">Edit</button> <button class="btn sm danger" data-del="${p.id}" aria-label="Delete">✕</button></td></tr>`}).join("");
-  el.innerHTML=h+`<div class="tw"><table><thead><tr><th class="n">#</th><th>Half</th><th>Clock</th><th>Coverage</th><th>Result</th><th>Play</th><th class="n">Pts</th><th class="n">Run PPP</th><th>Notes</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`}
+    return `<tr><td class="n">${i+1}</td><td>${p.half==="1"?"1st":p.half==="2"?"2nd":esc(p.half)}</td><td class="n"><b>${esc(p.clock||"—")}</b></td><td>${seg(p,coverLine)}</td><td>${seg(p,sg=>`<div class="mini">${sg.results.map(r=>resPill(r)).join("")||"—"}</div>`)}</td><td>${seg(p,sg=>esc((sg.plays||[]).join(", "))||"—")}</td><td class="n"><b>${pp}</b></td><td class="n">${n?fx(pts/n):"—"}</td><td>${esc(p.notes)}</td><td style="white-space:nowrap"><button class="btn sm" data-ins="${p.id}" title="Add a missed possession right after this one">＋ Insert</button> <button class="btn sm" data-edit="${p.id}">Edit</button> <button class="btn sm danger" data-del="${p.id}" aria-label="Delete">✕</button></td></tr>`}).join("");
+  el.innerHTML=h+`<div style="margin-bottom:10px"><button class="btn sm" id="sortClock">⇅ Sort by half &amp; clock</button> <span class="sub">Forgot one? Tap ＋ Insert on the row it goes after, or sort by clock.</span></div><div class="tw"><table><thead><tr><th class="n">#</th><th>Half</th><th>Clock</th><th>Coverage</th><th>Result</th><th>Play</th><th class="n">Pts</th><th class="n">Run PPP</th><th>Notes</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`}
+$("#p-poss").addEventListener("click",e=>{
+  const ins=e.target.closest("[data-ins]");
+  if(ins){const d=D();if(d.editId){toast("Finish or cancel the edit first");return}
+    d.after=ins.dataset.ins;const g=G(),i=g.poss.findIndex(x=>x.id===d.after);if(i>=0)d.half=g.poss[i].half;
+    save();syncInputs();renderSegs();setTab("log");toast(`Next possession goes right after #${i+1}`);return}
+  if(e.target.id==="sortClock"){const g=G();
+    const secs=c=>{const m=/^(\d+):(\d\d)$/.exec((c||"").trim());return m?+m[1]*60+ +m[2]:null};
+    const hr=h=>h==="1"?1:h==="2"?2:3;
+    if(g.poss.some(x=>secs(x.clock)===null)){toast("Every possession needs a clock (like 12:34) to sort");return}
+    if(!confirm("Re-order all possessions by half and game clock (most time remaining first)?"))return;
+    g.poss.sort((a,b)=>hr(a.half)-hr(b.half)||secs(b.clock)-secs(a.clock));save();renderPoss();toast("Sorted by half and clock")}});
 function renderAll(){renderHeader();renderSegs();renderLog();if(S.ui.tab==="poss")renderPoss();if(S.ui.tab==="game")renderGame();if(S.ui.tab==="season")renderSeason()}
 applyTheme();syncInputs();renderAll();setTab(S.ui.tab);
 if("serviceWorker" in navigator){/* intentionally none: single static file */}
