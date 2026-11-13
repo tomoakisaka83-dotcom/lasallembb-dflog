@@ -105,9 +105,10 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .half-sep td{background:var(--soft);font-weight:800;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
 .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
 .empty{padding:30px;text-align:center;color:var(--mute)}
-.rbar{display:grid;grid-template-columns:110px 1fr 70px;gap:8px;align-items:center;margin:5px 0;font-size:13.5px}
+.rbar{display:grid;grid-template-columns:170px 1fr 96px;gap:18px;align-items:center;margin:5px 0;font-size:13.5px}
 .rbar .t{height:16px;background:var(--soft);border-radius:5px;overflow:hidden}
-.rbar .t i{display:block;height:100%;background:var(--c,var(--neu));border-radius:5px}
+.rbar .t i{display:block;height:100%;background:var(--accent);border-radius:5px}
+.rbar .rl{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vbars{display:flex;gap:8px;align-items:flex-end;height:150px;padding-top:20px;overflow-x:auto}
 .vb{flex:1;min-width:46px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:12px}
 .vb i{display:block;width:70%;max-width:48px;background:var(--c,var(--accent));border-radius:6px 6px 0 0;min-height:2px}
@@ -135,7 +136,7 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
 .note-row:last-child{border:0}
 @media (max-width:600px){
   .clock{width:104px}
-  .rbar{grid-template-columns:84px 1fr 56px}
+  .rbar{grid-template-columns:118px 1fr 72px;gap:10px}
   .brand{font-size:15px}
 }
 /* block layout for DF type + coverage */
@@ -509,7 +510,7 @@ function analysisHTML(games,{showTrend=false}={}){
   const rc=new Map();for(const s of segs)for(const r of s.sg.results)rc.set(r,(rc.get(r)||0)+1);
   const rmax=Math.max(1,...rc.values());
   const rorder=[...new Set([...S.cfg.results,...rc.keys()])].filter(r=>rc.has(r));
-  const resHTML=`<div class="card"><h3>Results breakdown</h3>${rorder.map(r=>`<div class="rbar"><span>${resPill(r)}</span><div class="t"><i class="k-${rmeta(r).kind}" style="${rStyle(r)};width:${rc.get(r)/rmax*100}%"></i></div><b style="text-align:right">${rc.get(r)} <span class="sub">${pc(rc.get(r)/all.n)}</span></b></div>`).join("")}<div class="note" style="margin-top:6px">% = share of DF possessions that included this result.</div></div>`;
+  const resHTML=`<div class="card"><h3>Results breakdown</h3>${rorder.map(r=>`<div class="rbar"><span class="rl">${esc(r)}</span><div class="t"><i style="width:${rc.get(r)/rmax*100}%"></i></div><b style="text-align:right">${rc.get(r)} <span class="sub">${pc(rc.get(r)/all.n)}</span></b></div>`).join("")}<div class="note" style="margin-top:6px">% = share of DF possessions that included this result.</div></div>`;
   const inG=(k,g)=>split(k).g.toUpperCase()===g;
   const itemTable=(title,g,note)=>{
     const m=groupBy(segs.filter(s=>s.sg.covs.some(k=>inG(k,g))),s=>s.sg.covs.filter(k=>inG(k,g)));
@@ -525,19 +526,6 @@ function analysisHTML(games,{showTrend=false}={}){
   h+=table("DF + Ball screen DF + Post trap DF combinations",midRows,all.n,{head:"Combination",note:"Exact half-court packages: DF call + ball screen coverage + post trap coverage."});
   h+=itemTable("Zone DF","ZONE DF","Possessions in each zone coverage.");
   h+=table("By half",halfRows,all.n,{head:"Half"});
-  /* 2nd DF */
-  const twoPs=games.flatMap(g=>g.poss.filter(p=>p.segs.length>1));
-  let sec=`<div class="card"><h3>2nd DF possessions (out of bounds / foul / coverage change)</h3><div class="sub">${two} of ${nposs} possessions (${pc(nposs?two/nposs:null)}) had a 2nd DF block.</div>`;
-  if(twoPs.length){
-    const trig=new Map(),sw=new Map();
-    for(const p of twoPs){const first=p.segs[0],sec2=p.segs[1];const last=first.results.length?first.results[first.results.length-1]:"(no result)";trig.set(last,(trig.get(last)||0)+1);
-      const a=comboKey(first).map(k=>split(k).n).join(" + ")||"(none)",b=comboKey(sec2).map(k=>split(k).n).join(" + ")||"(none)";
-      const kk=a===b?"Same coverage: "+a:a+"  →  "+b;sw.set(kk,(sw.get(kk)||0)+1)}
-    const secSegs=segs.filter(s=>s.si===1);const a2=agg(secSegs.map(s=>s.ev));
-    sec+=`<div class="stats" style="margin:10px 0">${kpis([["2nd-block poss",a2.n],["PPP on 2nd block",fx(ppp(a2))],["Stop % 2nd block",pc(a2.n?a2.stop/a2.n:null)]])}</div>
-    <div class="cols"><div><h3>What ended the 1st block</h3>${[...trig].sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="rbar" style="grid-template-columns:120px 1fr 40px"><span>${k==="(no result)"?k:resPill(k)}</span><div class="t"><i style="width:${v/twoPs.length*100}%;--c:var(--gold)"></i></div><b style="text-align:right">${v}</b></div>`).join("")}</div>
-    <div><h3>Coverage switches (1st → 2nd)</h3>${[...sw].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>`<div class="note-row"><b>${v}×</b> ${esc(k)}</div>`).join("")}</div></div>`}
-  sec+=`</div>`;h+=sec;
   /* season trend */
   if(showTrend)h+=trendHTML(games);
   /* notes */
