@@ -131,6 +131,8 @@ dialog::backdrop{background:rgba(8,12,24,.55)}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;z-index:100;max-width:90%}
 #toast.on{opacity:1}
 .note{font-size:13px;color:var(--mute)}
+.btn.sync[data-st="online"]{color:var(--good);border-color:var(--good)}.btn.sync[data-st="offline"],.btn.sync[data-st="error"]{color:var(--bad);border-color:var(--bad)}.btn.sync[data-st="pending"],.btn.sync[data-st="saving"]{color:var(--warn);border-color:var(--warn)}
+.passrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}.passrow input{flex:1;min-width:160px}
 .cp{width:28px;height:28px;padding:0;border:0;background:none;cursor:pointer;vertical-align:middle;border-radius:6px}
 details summary{cursor:pointer;font-weight:700;padding:6px 0}
 .note-row{padding:6px 0;border-bottom:1px solid var(--line)}
@@ -196,6 +198,7 @@ h1.brand{margin:0 auto 0 0}
       <button class="btn sm" id="tzDn" title="Smaller text" aria-label="Decrease text size">A−</button>
       <button class="btn sm" id="tzUp" title="Bigger text" aria-label="Increase text size">A+</button>
       <button class="btn sm" id="pdfBtn" aria-haspopup="dialog"><span aria-hidden="true">⬇</span> PDF</button>
+      <button class="btn sm sync" id="syncBtn" aria-haspopup="dialog" data-st="loading">Connecting…</button>
       <button class="btn sm" id="dataBtn" aria-haspopup="dialog" aria-label="Data and backup">Data</button>
       <button class="btn sm" id="theme" title="Light / dark" aria-label="Toggle light or dark theme">Theme</button>
     </div>
@@ -306,7 +309,76 @@ function load(){
   return fresh()
 }
 let S=load();
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast("Could not save (browser storage blocked)")}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast("Could not save (browser storage blocked)")}if(typeof noteChange==="function")noteChange()}
+/* ---- Shared online stats: everyone who opens the site sees the same games ---- */
+const SK="dfPossLog.sync",EKK="dfPossLog.editKey",PREK="dfPossLog.v1.beforeShared";
+let SY=(()=>{try{return Object.assign({version:null,dirty:false,snap:""},JSON.parse(localStorage.getItem(SK)))}catch(e){return{version:null,dirty:false,snap:""}}})();
+let editKey=(()=>{try{return localStorage.getItem(EKK)||""}catch(e){return""}})();
+let syncSt="loading",pushing=false,pushT=null,viewWarned=false;
+function saveSync(){try{localStorage.setItem(SK,JSON.stringify(SY))}catch(e){}}
+const hashStr=s=>{let h=5381;for(let i=0;i<s.length;i++)h=(h*33^s.charCodeAt(i))>>>0;return s.length+":"+h.toString(36)};
+const sharedSnap=()=>JSON.stringify({cfg:S.cfg,games:S.games});
+const hasRealData=()=>S.games.some(g=>g.poss.length);
+const SYNC_LABEL={loading:"Connecting…",online:"● Shared · editing",saving:"Saving…",view:"View only",offline:"Offline",error:"Not saved",pending:"Unsaved changes"};
+function setSync(s){syncSt=s;const b=$("#syncBtn");if(!b)return;
+  const lbl=s==="online"&&!editKey?"View only":SYNC_LABEL[s]||s;
+  b.textContent=lbl;b.dataset.st=s;b.setAttribute("aria-label","Shared stats status: "+lbl+". Open data and sharing options")}
+function syncNote(){
+  if(!editKey&&(syncSt==="online"||syncSt==="view"))return"You're viewing the shared stats. Changes you make here stay on this device only and may be replaced by the latest shared stats.";
+  return{loading:"Connecting to the shared stats…",online:"Editing is on. Every change you make is saved to the shared site, so anyone with the link sees it.",saving:"Saving your latest change to the shared site…",offline:"Can't reach the shared site right now. Changes are kept on this device and sent when you're back online.",error:"The last change couldn't be saved to the shared site. It is kept on this device and will be retried.",pending:"Changes on this device haven't been sent to the shared site yet."}[syncSt]||""}
+function adoptRemote(r){
+  if(!r||!r.cfg||!Array.isArray(r.games)||!r.games.length)return;
+  if(SY.version==null&&hasRealData()&&hashStr(sharedSnap())!==hashStr(JSON.stringify({cfg:r.cfg,games:r.games}))){
+    try{localStorage.setItem(PREK,JSON.stringify({app:"df-poss-log",v:1,state:{cfg:S.cfg,games:S.games}}))}catch(e){}}
+  S.cfg=migrateCfg(r.cfg);migrateGames(r.games);S.games=r.games;
+  if(!S.games.find(g=>g.id===S.cur))S.cur=S.games[0].id;
+  if(Array.isArray(S.ui.sel))S.ui.sel=S.ui.sel.filter(id=>S.games.some(g=>g.id===id));
+  SY.version=r.version;SY.snap=hashStr(sharedSnap());SY.dirty=false;saveSync();
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  renderAll();if(S.ui.tab)setTab(S.ui.tab)}
+function noteChange(){
+  const h=hashStr(sharedSnap());if(h===SY.snap)return;
+  if(!editKey){if(!viewWarned&&syncSt!=="loading"&&syncSt!=="offline"){viewWarned=true;toast("View only: this change stays on this device")}return}
+  SY.dirty=true;saveSync();setSync("pending");clearTimeout(pushT);pushT=setTimeout(()=>push(false),1200)}
+async function push(force){
+  if(!editKey)return;if(pushing){clearTimeout(pushT);pushT=setTimeout(()=>push(force),800);return}
+  clearTimeout(pushT);pushing=true;setSync("saving");
+  const body=sharedSnap(),h=hashStr(body);let again=false;
+  try{
+    const res=await fetch("/api/state",{method:"PUT",headers:{"content-type":"application/json","x-edit-key":editKey},
+      body:JSON.stringify({cfg:S.cfg,games:S.games,baseVersion:SY.version??0,force:!!force})});
+    const j=await res.json().catch(()=>({}));
+    if(res.ok){SY.version=j.version;SY.snap=h;SY.dirty=hashStr(sharedSnap())!==h;saveSync();setSync(SY.dirty?"pending":"online");again=SY.dirty}
+    else if(res.status===409){pushing=false;
+      if(confirm("Someone else saved newer stats to the shared site.\n\nOK = keep THIS device's version (replaces the shared stats)\nCancel = load the shared version (drops this device's unsent changes)"))return push(true);
+      adoptRemote(j.latest);setSync("online");toast("Loaded the latest shared stats");return}
+    else if(res.status===401){editKey="";try{localStorage.removeItem(EKK)}catch(e){}setSync("view");toast("Editor passcode was rejected. Editing turned off on this device")}
+    else{setSync("error");toast(j.error||"Couldn't save to the shared site")}
+  }catch(e){setSync("offline")}
+  finally{pushing=false}
+  if(again){pushT=setTimeout(()=>push(false),800)}}
+async function pull(){
+  if(pushing)return;
+  try{const res=await fetch("/api/state",{cache:"no-store"});if(!res.ok)throw 0;const r=await res.json();
+    if(!r.cfg||!r.games||!r.games.length){ /* shared site is empty */
+      if(editKey&&(hasRealData()||SY.dirty)){SY.version=r.version||0;return push(false)}
+      setSync(editKey?"online":"view");return}
+    if(editKey&&SY.dirty)return push(false);
+    if(r.version!==SY.version||(SY.version==null))adoptRemote(r);
+    setSync(editKey?"online":"view")
+  }catch(e){setSync(editKey&&SY.dirty?"offline":"offline")}}
+async function enableEditing(code){
+  code=(code||"").trim();if(!code){toast("Enter the editor passcode");return false}
+  try{const res=await fetch("/api/check",{method:"POST",headers:{"x-edit-key":code}});const j=await res.json().catch(()=>({}));
+    if(res.status===503){toast(j.error||"Editing isn't set up on the server yet");return false}
+    if(!res.ok){toast("Wrong passcode");return false}}
+  catch(e){toast("Can't reach the shared site. Try again when online");return false}
+  editKey=code;try{localStorage.setItem(EKK,code)}catch(e){}
+  toast("Editing turned on for this device");await pull();return true}
+function disableEditing(){editKey="";try{localStorage.removeItem(EKK)}catch(e){}setSync("view");toast("Editing turned off on this device")}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")pull()});
+window.addEventListener("online",()=>pull());
+setInterval(()=>{if(document.visibilityState==="visible")pull()},20000);
 const G=()=>S.games.find(g=>g.id===S.cur);
 const gameName=g=>S.cfg.team+" vs "+g.opp;
 const gKey=(g,i)=>g+"::"+i;
@@ -698,7 +770,11 @@ function csvFor(games){
   return rows.map(r=>r.map(csvEsc).join(",")).join("\n")}
 function dataDialog(){
   openDlg("Data & backup",`
-  <div class="card" style="box-shadow:none"><b>Your data lives in this browser.</b><div class="note">It's saved automatically on this device, but clearing browser data or switching phone/laptop will not carry it over. Download a backup after each game (and keep it somewhere safe).</div></div>
+  <div class="card" style="box-shadow:none"><b>Shared stats</b><div class="note" id="syncNote" aria-live="polite">${esc(syncNote())}</div>
+  ${editKey?`<div class="chips" style="margin-top:8px"><button type="button" class="btn" id="pullNow">Reload shared stats</button><button type="button" class="btn" id="pushNow"><span aria-hidden="true">⬆</span> Upload this device's stats to the shared site</button><button type="button" class="btn" id="editOff">Turn off editing here</button></div>`
+  :`<div class="note" style="margin-top:6px">To add or change stats for everyone, enter the editor passcode.</div><form class="passrow" id="passForm"><input type="password" id="passIn" autocomplete="current-password" aria-label="Editor passcode" placeholder="Editor passcode"><button class="btn pri" type="submit">Turn on editing</button><button type="button" class="btn" id="pullNow">Reload shared stats</button></form>`}
+  ${localStorage.getItem(PREK)?`<div class="note" style="margin-top:8px">This device had its own stats before it switched to the shared ones. <button type="button" class="btn sm" id="preDl">Download them</button></div>`:""}</div>
+  <div class="note" style="margin:8px 0">Moving stats from another link or device? Open that link, choose <b>Data → Backup everything</b>, then come back here, turn on editing and choose <b>Restore backup</b>. The restored stats are saved to the shared site.</div>
   <div class="chips">
    <button class="btn pri" id="bkJson"><span aria-hidden="true">⬇</span> Backup everything (.json)</button>
    <button type="button" class="btn" id="restoreBtn"><span aria-hidden="true">⬆</span> Restore backup</button><input type="file" id="restore" accept=".json,application/json" hidden aria-label="Backup file to restore"></div>
@@ -709,17 +785,22 @@ function dataDialog(){
   $("#bkJson").onclick=()=>download(`df-poss-log-backup-${today()}.json`,JSON.stringify({app:"df-poss-log",v:1,state:{cfg:S.cfg,games:S.games}},null,1),"application/json");
   $("#csvGame").onclick=()=>download(`${G().opp.replace(/\W+/g,"_")}-df-log.csv`,csvFor([G()]),"text/csv");
   $("#csvAll").onclick=()=>download(`season-df-log.csv`,csvFor(S.games),"text/csv");
+  $("#pullNow").onclick=async()=>{await pull();toast("Showing the latest shared stats");dataDialog()};
+  if($("#passForm"))$("#passForm").onsubmit=async e=>{e.preventDefault();if(await enableEditing($("#passIn").value))dataDialog()};
+  if($("#editOff"))$("#editOff").onclick=()=>{disableEditing();dataDialog()};
+  if($("#pushNow"))$("#pushNow").onclick=async()=>{if(!confirm(`Replace the shared stats with the ${S.games.length} game(s) on this device? Everyone will see this version.`))return;await push(true);dataDialog()};
+  if($("#preDl"))$("#preDl").onclick=()=>download(`df-poss-log-this-device-${today()}.json`,localStorage.getItem(PREK),"application/json");
   $("#restoreBtn").onclick=()=>$("#restore").click();
   $("#restore").onchange=async e=>{const f=e.target.files[0];if(!f)return;
     try{const j=JSON.parse(await f.text());const st=j.state||j;if(!st.cfg||!Array.isArray(st.games))throw 0;
-      if(!confirm(`Restore backup with ${st.games.length} game(s)? This replaces what's currently in this browser.`))return;
+      if(!confirm(`Restore backup with ${st.games.length} game(s)? This replaces what's currently in this browser${editKey?" and on the shared site for everyone":""}.`))return;
       S.cfg=migrateCfg(st.cfg);migrateGames(st.games);S.games=st.games.length?st.games:[newGame()];S.cur=S.games[0].id;S.draft=emptyDraft();S.ui.sel=null;save();syncInputs();$("#dlg").close();toast("Backup restored")}
     catch(err){toast("That file isn't a valid backup")}};
   $("#sample").onclick=()=>{if(!SAMPLE){toast("No sample bundled");return}
     const g={id:uid(),opp:SAMPLE.opp,date:SAMPLE.date,poss:clone(SAMPLE.poss)};
     for(const p of g.poss){p.id=uid();for(const sg of p.segs)for(const k of sg.covs){const {g:gr,n}=split(k);let grp=S.cfg.coverages.find(x=>x.group===gr);if(!grp){grp={group:gr,items:[]};S.cfg.coverages.push(grp)}if(!grp.items.includes(n))grp.items.push(n)}}
     S.games.push(g);S.cur=g.id;S.ui.sel=null;save();$("#dlg").close();toast("Sample game loaded");setTab("game")};
-  $("#wipe").onclick=()=>{if(!confirm("Erase ALL games and settings from this browser? Download a backup first!"))return;if(!confirm("Really erase everything?"))return;S=fresh();save();syncInputs();$("#dlg").close();toast("Everything erased")};
+  $("#wipe").onclick=()=>{if(!confirm(`Erase ALL games and settings from this browser${editKey?" AND the shared site (everyone loses them)":""}? Download a backup first!`))return;if(!confirm("Really erase everything?"))return;S=fresh();save();syncInputs();$("#dlg").close();toast("Everything erased")};
 }
 $("#dataBtn").onclick=dataDialog;
 function pdfDialog(){
@@ -779,6 +860,7 @@ $("#p-poss").addEventListener("click",e=>{
     g.poss.sort((a,b)=>hr(a.half)-hr(b.half)||secs(b.clock)-secs(a.clock));save();renderPoss();$("#sortClock")?.focus({preventScroll:true});toast("Sorted by half and clock")}});
 function renderAll(){renderHeader();renderSegs();renderLog();if(S.ui.tab==="poss")renderPoss();if(S.ui.tab==="game")renderGame();if(S.ui.tab==="season")renderSeason()}
 applyTheme();syncInputs();renderAll();setTab(S.ui.tab);
+setSync("loading");pull();$("#syncBtn").onclick=()=>dataDialog();
 if("serviceWorker" in navigator){/* intentionally none: single static file */}
 </script>
 </body>
