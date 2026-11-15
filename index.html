@@ -44,7 +44,7 @@ main{max-width:1200px;margin:0 auto;padding:16px}
 h2{margin:0 0 4px;font-size:20px}
 h3{margin:0 0 8px;font-size:15px}
 .sub{color:var(--mute);font-size:13px}
-label.l{display:block;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:12px 0 6px}
+label.l,span.l{display:block;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:12px 0 6px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:8px 14px;min-height:40px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
@@ -165,6 +165,15 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
 .chip.sm{min-height:34px;padding:4px 12px}
 .sg+.sg{border-top:1px dashed var(--line);margin-top:6px;padding-top:6px}
 #printArea{display:none}
+/* ---- accessibility ---- */
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.skip{position:absolute;left:8px;top:-60px;z-index:200;background:var(--accent);color:var(--accent-ink);padding:10px 14px;border-radius:10px;font-weight:700;text-decoration:none}
+.skip:focus{top:8px}
+:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid var(--gold);outline-offset:2px;box-shadow:0 0 0 5px var(--card)}
+.half button:focus-visible,nav button:focus-visible{outline-offset:-3px}
+h1.brand{margin:0 auto 0 0}
+.dh h2{margin:0;font-size:16px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media print{header,.actions,.btn{display:none!important}
  body.printing>*:not(#printArea){display:none!important}
  body.printing #printArea{display:block}
@@ -175,39 +184,41 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
 </style>
 </head>
 <body>
+<a class="skip" href="#main">Skip to main content</a>
 <header>
   <div class="top">
-    <div class="brand"><i></i><span id="brandName">DF Poss Log</span></div>
-    <div class="gamebar">
-      <select id="gameSel" aria-label="Game"></select>
-      <button class="btn sm" id="newGame">+ New game</button>
-      <button class="btn sm" id="editGame">Edit</button>
-      <button class="btn sm" id="custom">⚙ Customize</button>
-      <button class="btn sm" id="tzDn" title="Smaller text">A−</button>
-      <button class="btn sm" id="tzUp" title="Bigger text">A+</button>
-      <button class="btn sm" id="pdfBtn">⬇ PDF</button>
-      <button class="btn sm" id="dataBtn">Data</button>
-      <button class="btn sm" id="theme" title="Light / dark">Theme</button>
+    <h1 class="brand"><i aria-hidden="true"></i><span id="brandName">DF Poss Log</span></h1>
+    <div class="gamebar" role="toolbar" aria-label="Game and app tools">
+      <select id="gameSel" aria-label="Current game"></select>
+      <button class="btn sm" id="newGame" aria-haspopup="dialog">+ New game</button>
+      <button class="btn sm" id="editGame" aria-haspopup="dialog" aria-label="Edit current game">Edit</button>
+      <button class="btn sm" id="custom" aria-haspopup="dialog"><span aria-hidden="true">⚙</span> Customize</button>
+      <button class="btn sm" id="tzDn" title="Smaller text" aria-label="Decrease text size">A−</button>
+      <button class="btn sm" id="tzUp" title="Bigger text" aria-label="Increase text size">A+</button>
+      <button class="btn sm" id="pdfBtn" aria-haspopup="dialog"><span aria-hidden="true">⬇</span> PDF</button>
+      <button class="btn sm" id="dataBtn" aria-haspopup="dialog" aria-label="Data and backup">Data</button>
+      <button class="btn sm" id="theme" title="Light / dark" aria-label="Toggle light or dark theme">Theme</button>
     </div>
   </div>
-  <nav id="nav">
-    <button data-tab="log">1 · Log It</button>
-    <button data-tab="poss">2 · Possession Log</button>
-    <button data-tab="game">3 · Game Analysis</button>
-    <button data-tab="season">4 · Season</button>
-  </nav>
+  <nav aria-label="Sections"><div id="nav" role="tablist" aria-label="Sections" style="display:flex;gap:4px">
+    <button role="tab" id="t-log" aria-controls="p-log" data-tab="log">1 · Log It</button>
+    <button role="tab" id="t-poss" aria-controls="p-poss" data-tab="poss">2 · Possession Log</button>
+    <button role="tab" id="t-game" aria-controls="p-game" data-tab="game">3 · Game Analysis</button>
+    <button role="tab" id="t-season" aria-controls="p-season" data-tab="season">4 · Season</button>
+  </div></nav>
 </header>
 
-<main>
-  <section id="p-log">
-    <div id="live" class="stats"></div>
+<main id="main" tabindex="-1">
+  <section id="p-log" role="tabpanel" aria-labelledby="t-log">
+    <h2 class="sr-only">Log a possession</h2>
+    <div id="live" class="stats" aria-label="Live game totals" role="region"></div>
 
     <div class="card">
       <div class="row">
-        <div><label class="l" style="margin-top:0">Half</label>
-          <div class="half" id="halfSel"><button data-h="1">1st</button><button data-h="2">2nd</button><button data-h="OT">OT</button></div></div>
-        <div><label class="l" style="margin-top:0">Game clock</label>
-          <input id="clock" class="clock" type="text" inputmode="numeric" autocomplete="off" placeholder="0:00" aria-label="Game clock"></div>
+        <div><span class="l" id="halfLbl" style="margin-top:0">Half</span>
+          <div class="half" id="halfSel" role="group" aria-labelledby="halfLbl"><button data-h="1">1st</button><button data-h="2">2nd</button><button data-h="OT">OT</button></div></div>
+        <div><label class="l" style="margin-top:0" for="clock">Game clock</label>
+          <input id="clock" class="clock" type="text" inputmode="numeric" autocomplete="off" placeholder="0:00" aria-describedby="clockHint"><span id="clockHint" class="sr-only">Type digits, for example 1234 for 12:34</span></div>
       </div>
       <div id="afterRow"></div>
     </div>
@@ -228,13 +239,14 @@ details summary{cursor:pointer;font-weight:700;padding:6px 0}
     <div id="playLive"></div>
   </section>
 
-  <section id="p-poss" hidden></section>
-  <section id="p-game" hidden></section>
-  <section id="p-season" hidden></section>
+  <section id="p-poss" role="tabpanel" aria-labelledby="t-poss" hidden></section>
+  <section id="p-game" role="tabpanel" aria-labelledby="t-game" hidden></section>
+  <section id="p-season" role="tabpanel" aria-labelledby="t-season" hidden></section>
 </main>
 
-<dialog id="dlg"></dialog>
-<div id="toast"></div>
+<dialog id="dlg" aria-labelledby="dTitle"></dialog>
+<div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+<div id="srLive" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
 <script>
 "use strict";
@@ -244,6 +256,11 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-3);
 const clone=o=>JSON.parse(JSON.stringify(o));
 const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+/* keep keyboard focus on the "same" control after a section re-renders via innerHTML */
+const focusKey=el=>{if(!el||el===document.body)return null;if(el.id)return"#"+CSS.escape(el.id);
+  const a=[...el.attributes].filter(x=>x.name.startsWith("data-")).map(x=>`[${x.name}="${CSS.escape(x.value)}"]`).join("");return a?el.tagName.toLowerCase()+a:null};
+const refocus=(root,key,fallback)=>{const el=(key&&root.querySelector(key))||fallback;if(el)el.focus({preventScroll:true})};
+const announce=m=>{const r=$("#srLive");if(!r)return;r.textContent="";setTimeout(()=>{r.textContent=m},50)};
 let toastT;function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("on"),2200)}
 
 /* ============ defaults & state ============ */
@@ -314,10 +331,13 @@ const resPill=(r,extra="")=>`<span class="pill k-${rmeta(r).kind}" style="${rSty
 function applyTheme(){const t=S.ui.theme;if(t==="auto")document.documentElement.removeAttribute("data-theme");else document.documentElement.dataset.theme=t}
 $("#theme").onclick=()=>{const dark=matchMedia("(prefers-color-scheme:dark)").matches;const cur=S.ui.theme==="auto"?(dark?"dark":"light"):S.ui.theme;S.ui.theme=cur==="dark"?"light":"dark";applyTheme();save()};
 function setTab(t){S.ui.tab=t;save();
-  for(const b of document.querySelectorAll("#nav button"))b.classList.toggle("on",b.dataset.tab===t);
+  for(const b of document.querySelectorAll("#nav button")){const on=b.dataset.tab===t;b.classList.toggle("on",on);b.setAttribute("aria-selected",on);b.tabIndex=on?0:-1}
   $("#p-log").hidden=t!=="log";$("#p-poss").hidden=t!=="poss";$("#p-game").hidden=t!=="game";$("#p-season").hidden=t!=="season";
   if(t==="game")renderGame();if(t==="season")renderSeason();if(t==="log")renderLog();if(t==="poss")renderPoss();scrollTo(0,0)}
 $("#nav").onclick=e=>{const b=e.target.closest("button");if(b)setTab(b.dataset.tab)};
+$("#nav").addEventListener("keydown",e=>{const tabs=[...document.querySelectorAll("#nav [role=tab]")],i=tabs.indexOf(document.activeElement);if(i<0)return;
+  let j=null;if(e.key==="ArrowRight")j=(i+1)%tabs.length;else if(e.key==="ArrowLeft")j=(i-1+tabs.length)%tabs.length;else if(e.key==="Home")j=0;else if(e.key==="End")j=tabs.length-1;
+  if(j===null)return;e.preventDefault();setTab(tabs[j].dataset.tab);tabs[j].focus()});
 
 /* ============ header: games ============ */
 function renderHeader(){
@@ -329,8 +349,8 @@ $("#gameSel").onchange=e=>{S.cur=e.target.value;save();cancelEdit(true);renderAl
 function gameDialog(g){
   const isNew=!g;g=g||newGame("","");
   openDlg(isNew?"New game":"Edit game",`
-    <label class="l" style="margin-top:0">Opponent</label><input type="text" id="gOpp" style="width:100%" value="${esc(isNew?"":g.opp)}" placeholder="e.g. Loyola MD">
-    <label class="l">Date</label><input type="date" id="gDate" value="${esc(isNew?today():g.date)}">
+    <label class="l" style="margin-top:0" for="gOpp">Opponent</label><input type="text" id="gOpp" style="width:100%" value="${esc(isNew?"":g.opp)}" placeholder="e.g. Loyola MD">
+    <label class="l" for="gDate">Date</label><input type="date" id="gDate" value="${esc(isNew?today():g.date)}">
     <div class="inl" style="margin-top:16px"><button class="btn pri" id="gSave">${isNew?"Create game":"Save"}</button>
     ${isNew?"":'<button class="btn danger" id="gDel" style="margin-left:auto">Delete game</button>'}</div>`);
   $("#gSave").onclick=()=>{const opp=$("#gOpp").value.trim()||"Opponent",date=$("#gDate").value||today();
@@ -343,34 +363,37 @@ $("#newGame").onclick=()=>gameDialog(null);
 $("#editGame").onclick=()=>gameDialog(G());
 
 /* ============ dialog ============ */
-function openDlg(title,html){const d=$("#dlg");d.innerHTML=`<div class="dh"><b>${esc(title)}</b><button class="btn sm" id="dClose">Close</button></div><div class="db">${html}</div>`;$("#dClose").onclick=()=>d.close();if(!d.open)d.showModal()}
+let dlgOpener=null;
+function openDlg(title,html){const d=$("#dlg");const wasOpen=d.open;const y=d.scrollTop,fk=d.contains(document.activeElement)?focusKey(document.activeElement):null;
+  d.innerHTML=`<div class="dh"><h2 id="dTitle">${esc(title)}</h2><button class="btn sm" id="dClose" aria-label="Close dialog">Close</button></div><div class="db">${html}</div>`;$("#dClose").onclick=()=>d.close();
+  if(!wasOpen){dlgOpener=document.activeElement;d.showModal()}else{d.scrollTop=y;refocus(d,fk,$("#dClose"))}}
 $("#dlg").addEventListener("click",e=>{if(e.target===$("#dlg"))$("#dlg").close()});
-$("#dlg").addEventListener("close",()=>{renderAll()});
+$("#dlg").addEventListener("close",()=>{renderAll();const o=dlgOpener;dlgOpener=null;if(o&&o.isConnected&&!o.closest("[hidden]"))o.focus({preventScroll:true})});
 
 /* ============ PAGE 1: entry form ============ */
 const D=()=>S.draft;
-function chip(label,on,attrs,cls="",style=""){return `<button type="button" class="chip ${cls} ${on?"on":""}" style="${style}" ${attrs}>${esc(label)}</button>`}
+function chip(label,on,attrs,cls="",style=""){return `<button type="button" class="chip ${cls} ${on?"on":""}" aria-pressed="${!!on}" style="${style}" ${attrs}>${esc(label)}</button>`}
 function ftPanel(sg,i){
   if(!sg.ft)return"";
   const lab={FT:"FT",BONUS:"BONUS FT",AND1:"AND-1 FT"}[sg.ft];
   const opts={FT:[[0,1],[1,1],[0,2],[1,2],[2,2],[0,3],[1,3],[2,3],[3,3]],BONUS:[[0,1],[1,1],[0,2],[1,2],[2,2]],AND1:[[0,1],[1,1]]}[sg.ft];
   const tp=[["FT","Shooting FTs"],["BONUS","Bonus FTs"],["AND1","And-one FT"]];
-  return `<div class="ftp"><div class="chips">${tp.map(([k,t])=>`<button type="button" class="chip sm ${sg.ft===k?"on":""}" data-act="ftopen" data-seg="${i}" data-v="${k}">${t}</button>`).join("")}<button type="button" class="btn sm" data-act="ftclose" data-seg="${i}" style="margin-left:auto">✕ Close</button></div>
+  return `<div class="ftp" role="group" aria-label="Free throws"><div class="chips">${tp.map(([k,t])=>`<button type="button" class="chip sm ${sg.ft===k?"on":""}" aria-pressed="${sg.ft===k}" data-act="ftopen" data-seg="${i}" data-v="${k}">${t}</button>`).join("")}<button type="button" class="btn sm" data-act="ftclose" data-seg="${i}" style="margin-left:auto" aria-label="Close free throw panel"><span aria-hidden="true">✕</span> Close</button></div>
   <div class="chips res-grid" style="margin-top:8px">${opts.map(([m,at])=>`<button type="button" class="chip res" data-act="ftadd" data-seg="${i}" data-v="${lab} ${m}/${at}">${m} of ${at} made</button>`).join("")}</div></div>`}
 function segHTML(sg,i){
   const a=(f,v)=>`data-act="tog" data-seg="${i}" data-f="${f}" data-v="${esc(v)}"`;
-  const groups=S.cfg.coverages.map(c=>`<div class="grp" style="border-top-color:${gcolor(c.group)}"><b>${esc(c.group)}</b><div class="chips blocks">${
+  const groups=S.cfg.coverages.map(c=>`<div class="grp" role="group" aria-label="${esc(c.group)}" style="border-top-color:${gcolor(c.group)}"><b aria-hidden="true">${esc(c.group)}</b><div class="chips blocks">${
     c.items.map(it=>{const k=gKey(c.group,it);return chip(it,sg.covs.includes(k),a("covs",k),"cov",colStyle(kcolor(k)))}).join("")}</div></div>`).join("");
-  const seq=sg.results.length?sg.results.map((r,j)=>`${j?'<span class="arrow">→</span>':""}<span class="tag">${resPill(r)}<button type="button" class="pill x" style="--c:var(--mute);border:0" data-act="rmres" data-seg="${i}" data-j="${j}" aria-label="Remove ${esc(r)}">✕</button></span>`).join(""):`<span class="sub">Tap results in order (e.g. X3 → ORB → O2)</span>`;
-  const lbl=t=>`<label class="l" data-drag title="Drag to reorder"><span class="grip" aria-hidden="true">⋮⋮</span>${t}</label>`;
+  const seq=sg.results.length?sg.results.map((r,j)=>`${j?'<span class="arrow" aria-hidden="true">→</span>':""}<span class="tag">${resPill(r)}<button type="button" class="pill x" style="--c:var(--mute);border:0" data-act="rmres" data-seg="${i}" data-j="${j}" aria-label="Remove result ${j+1}: ${esc(r)}">✕</button></span>`).join(""):`<span class="sub">Tap results in order (e.g. X3 → ORB → O2)</span>`;
+  const lbl=t=>`<span class="l" data-drag title="Drag to reorder"><span class="grip" aria-hidden="true">⋮⋮</span>${t}</span>`;
   const F={
-    plays:`<div class="field" data-field="plays">${lbl("Play type")}<div class="chips blocks">${S.cfg.playTypes.map(t=>chip(t,(sg.plays||[]).includes(t),a("plays",t),"type play")).join("")}</div></div>`,
-    types:`<div class="field" data-field="types">${lbl("DF type")}
+    plays:`<div class="field" data-field="plays" role="group" aria-label="${i?["","2nd","3rd","4th"][i]+" DF possession: ":""}Play type">${lbl("Play type")}<div class="chips blocks">${S.cfg.playTypes.map(t=>chip(t,(sg.plays||[]).includes(t),a("plays",t),"type play")).join("")}</div></div>`,
+    types:`<div class="field" data-field="types" role="group" aria-label="${i?["","2nd","3rd","4th"][i]+" DF possession: ":""}DF type">${lbl("DF type")}
     <div class="chips blocks">${S.cfg.dfTypes.map(t=>chip(t,sg.types.includes(t),a("types",t),"type",typeStyle(t))).join("")}</div></div>`,
-    covs:`<div class="field" data-field="covs">${lbl("DF coverage")}<div class="covs">${groups}</div></div>`,
-    results:`<div class="field" data-field="results">${lbl("Result")}<div>
+    covs:`<div class="field" data-field="covs" role="group" aria-label="${i?["","2nd","3rd","4th"][i]+" DF possession: ":""}DF coverage">${lbl("DF coverage")}<div class="covs">${groups}</div></div>`,
+    results:`<div class="field" data-field="results" role="group" aria-label="${i?["","2nd","3rd","4th"][i]+" DF possession: ":""}Result">${lbl("Result")}<div>
     <div class="chips res-grid">${S.cfg.results.map(r=>`<button type="button" class="chip res k-${rmeta(r).kind}" style="${rStyle(r)}" data-act="addres" data-seg="${i}" data-v="${esc(r)}">${esc(r)}</button>`).join("")}</div>
-    ${ftPanel(sg,i)}<div class="seq">${seq}${sg.results.length?`<button type="button" class="btn sm" data-act="clrres" data-seg="${i}" style="margin-left:auto">Clear results</button>`:""}</div></div></div>`
+    ${ftPanel(sg,i)}<div class="seq" role="group" aria-label="Selected results in order">${seq}${sg.results.length?`<button type="button" class="btn sm" data-act="clrres" data-seg="${i}" style="margin-left:auto">Clear results</button>`:""}</div></div></div>`
   };
   return `<div class="card seg s${i}">
     ${i?`<div class="seg-h"><h3>${["","2nd","3rd","4th"][i]} DF possession — after out of bounds / foul / new coverage</h3>${i===D().segs.length-1?'<button type="button" class="btn sm danger" data-act="rmseg">Remove</button>':""}</div>`:""}
@@ -397,7 +420,7 @@ function needs2nd(){const d=D();if(d.segs.length>3)return false;return d.segs[d.
 function renderSegs(){
   const d=D();
   $("#segs").innerHTML=d.segs.map(segHTML).join("")+(d.segs.length<4?`<button type="button" class="addseg ${needs2nd()?"hint":""}" data-act="addseg">+ Add ${["2nd","3rd","4th"][d.segs.length-1]} DF possession <span class="sub">(for out of bounds, foul, or a coverage change in the same possession)</span></button>`:"");
-  for(const b of document.querySelectorAll("#halfSel button"))b.classList.toggle("on",b.dataset.h===d.half);
+  for(const b of document.querySelectorAll("#halfSel button")){const on=b.dataset.h===d.half;b.classList.toggle("on",on);b.setAttribute("aria-pressed",on)}
   {const g=G();const hl=h=>h==="1"?"1st":h==="2"?"2nd":h;const cur=d.after||"";
    const o=[["","At the end of the log (live game)"],["start","At the very start"],...g.poss.map((p,i)=>[p.id,`After #${i+1} · ${hl(p.half)} · ${p.clock||"no clock"}`])];
    $("#afterRow").innerHTML=d.editId?"":`<label class="l" for="afterSel">Where does this possession go?</label><select id="afterSel" style="width:100%">${o.map(([v,t])=>`<option value="${v}" ${v===cur?"selected":""}>${esc(t)}</option>`).join("")}</select>`}
@@ -417,7 +440,13 @@ $("#segs").addEventListener("click",e=>{
     case "addseg":d.segs.push(emptySeg());break;
     case "rmseg":d.segs.pop();break;
   }
-  save();const y=scrollY;renderSegs();scrollTo(0,y);
+  const fk=focusKey(b);save();const y=scrollY;renderSegs();scrollTo(0,y);
+  const segEl=document.querySelectorAll("#segs .seg")[+b.dataset.seg]||$("#segs");
+  if(b.dataset.act==="addres"||b.dataset.act==="ftadd"){const v=sg.results[sg.results.length-1];if(v)announce(`Added ${v}. ${sg.results.length} result${sg.results.length>1?"s":""} selected`)}
+  else if(b.dataset.act==="rmres"||b.dataset.act==="clrres")announce(sg.results.length?`Removed. ${sg.results.length} result${sg.results.length>1?"s":""} selected`:"All results cleared");
+  if(b.dataset.act==="addseg")setTimeout(()=>[...document.querySelectorAll("#segs .seg")].pop()?.querySelector("button")?.focus({preventScroll:true}),40);
+  else if(b.dataset.act==="rmseg")$("#segs .addseg")?.focus({preventScroll:true});
+  else refocus($("#segs"),fk,segEl.querySelector('[data-act="addres"],button'));
   if(b.dataset.act==="addseg")setTimeout(()=>[...document.querySelectorAll("#segs .seg")].pop()?.scrollIntoView({behavior:"smooth",block:"start"}),30);
 });
 $("#halfSel").onclick=e=>{const b=e.target.closest("button");if(!b)return;D().half=b.dataset.h;save();renderSegs()};
@@ -459,7 +488,7 @@ function renderLogOld(){
   $("#logSub").textContent=gameName(g)+" · "+g.date+" · newest first — tap a row's Edit to fix an entry";
   if(!g.poss.length){$("#logTable").innerHTML=`<div class="card empty">No possessions logged yet. Pick DF type, coverage and result above, then tap <b>Log possession</b>.</div>`;return}
   const rows=g.poss.map((p,i)=>({p,i})).reverse();
-  $("#logTable").innerHTML=`<div class="tw"><table><thead><tr><th class="n">#</th><th>Half</th><th>Clock</th><th>DF type</th><th>Coverage</th><th>Result</th><th>DF type 2</th><th>Coverage 2</th><th>Result 2</th><th>Notes</th><th></th></tr></thead><tbody>${
+  $("#logTable").innerHTML=`<div class="tw"><table><thead><tr><th class="n">#</th><th>Half</th><th>Clock</th><th>DF type</th><th>Coverage</th><th>Result</th><th>DF type 2</th><th>Coverage 2</th><th>Result 2</th><th>Notes</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${
     rows.map(({p,i})=>`<tr><td class="n">${i+1}</td><td>${p.half==="1"?"1st":p.half==="2"?"2nd":esc(p.half)}</td><td class="n"><b>${esc(p.clock||"—")}</b></td>${segCells(p.segs[0])}${segCells(p.segs[1])}<td>${esc(p.notes)}</td>
     <td style="white-space:nowrap"><button class="btn sm" data-edit="${p.id}">Edit</button> <button class="btn sm danger" data-del="${p.id}" aria-label="Delete">✕</button></td></tr>`).join("")}</tbody></table></div>`;
 }
@@ -468,9 +497,9 @@ document.addEventListener("click",e=>{if(!e.target.closest("#p-poss"))return;
   const ed=e.target.closest("[data-edit]");
   if(ed){const p=g.poss.find(x=>x.id===ed.dataset.edit);if(!p)return;
     S.draft={half:p.half,clock:p.clock,segs:p.segs.length?clone(p.segs):[emptySeg()],notes:p.notes,editId:p.id};
-    save();syncInputs();renderSegs();setTab("log");toast("Editing possession — change it, then Update");return}
+    save();syncInputs();renderSegs();setTab("log");$("#clock").focus({preventScroll:true});toast("Editing possession — change it, then Update");return}
   const dl=e.target.closest("[data-del]");
-  if(dl){if(!confirm("Delete this possession?"))return;g.poss=g.poss.filter(x=>x.id!==dl.dataset.del);if(D().editId===dl.dataset.del){S.draft=emptyDraft();syncInputs();renderSegs()}save();renderPoss()}
+  if(dl){if(!confirm("Delete this possession?"))return;g.poss=g.poss.filter(x=>x.id!==dl.dataset.del);if(D().editId===dl.dataset.del){S.draft=emptyDraft();syncInputs();renderSegs()}save();renderPoss();($("#sortClock")||$("#t-poss")).focus({preventScroll:true});announce("Possession deleted")}
 });
 
 /* ============ analytics core ============ */
@@ -562,15 +591,15 @@ function renderSeason(){
   const rows=[...all].sort((a,b)=>a.date<b.date?-1:1).map(g=>{const a=agg(segsOf([g]).map(s=>s.ev));return{g,a}});
   const tot=agg(segsOf(sel).map(s=>s.ev));
   $("#p-season").innerHTML=`<h2>${esc(S.cfg.team)} — Season</h2><div class="sub" style="margin-bottom:12px">Every game you log here rolls up automatically. Untick a game to leave it out.</div>
-  <div class="card"><h3>Games included</h3><div class="checks">${[...all].sort((a,b)=>a.date<b.date?-1:1).map(g=>`<label><input type="checkbox" data-g="${g.id}" ${S.ui.sel.includes(g.id)?"checked":""}> ${esc(g.date.slice(5))} · ${esc(g.opp)}</label>`).join("")}</div>
-  <div style="margin-top:10px"><button class="btn sm" id="allG">All</button> <button class="btn sm" id="noG">None</button></div></div>
+  <div class="card"><h3>Games included</h3><div class="checks" role="group" aria-label="Games included">${[...all].sort((a,b)=>a.date<b.date?-1:1).map(g=>`<label><input type="checkbox" data-g="${g.id}" ${S.ui.sel.includes(g.id)?"checked":""}> ${esc(g.date.slice(5))} · ${esc(g.opp)}</label>`).join("")}</div>
+  <div style="margin-top:10px"><button class="btn sm" id="allG" aria-label="Include all games">All</button> <button class="btn sm" id="noG" aria-label="Include no games">None</button></div></div>
   <div class="card"><h3>Game by game</h3><div class="tw"><table><thead><tr><th>Date</th><th>Opponent</th><th class="n">Possessions</th><th class="n">PPP</th><th class="n">Total points</th><th class="n">FG%</th><th class="n">Turnovers</th><th class="n">TO%</th><th class="n">DREB</th><th class="n">DREB%</th><th class="n">OREB allowed</th></tr></thead><tbody>${
    rows.map(({g,a})=>`<tr style="${S.ui.sel.includes(g.id)?"":"opacity:.45"}"><td>${esc(g.date)}</td><td><b>${esc(g.opp)}</b></td>${gcells(a)}</tr>`).join("")}
    <tr><td colspan="2"><b>Season (selected)</b></td>${gcells(tot,true)}</tr></tbody></table></div></div>`
   +analysisHTML(sel,{showTrend:true});
 }
-$("#p-season").addEventListener("change",e=>{const c=e.target.closest("[data-g]");if(!c)return;const id=c.dataset.g;const s=new Set(S.ui.sel);c.checked?s.add(id):s.delete(id);S.ui.sel=[...s];save();const y=scrollY;renderSeason();scrollTo(0,y)});
-$("#p-season").addEventListener("click",e=>{if(e.target.id==="allG"){S.ui.sel=S.games.map(g=>g.id)}else if(e.target.id==="noG"){S.ui.sel=[]}else return;save();renderSeason()});
+$("#p-season").addEventListener("change",e=>{const c=e.target.closest("[data-g]");if(!c)return;const id=c.dataset.g;const s=new Set(S.ui.sel);c.checked?s.add(id):s.delete(id);S.ui.sel=[...s];const fk=focusKey(c);save();const y=scrollY;renderSeason();scrollTo(0,y);refocus($("#p-season"),fk)});
+$("#p-season").addEventListener("click",e=>{if(e.target.id==="allG"){S.ui.sel=S.games.map(g=>g.id)}else if(e.target.id==="noG"){S.ui.sel=[]}else return;const fk=focusKey(e.target);save();renderSeason();refocus($("#p-season"),fk)});
 
 /* ============ Customize ============ */
 function customDialog(){
@@ -579,19 +608,19 @@ function customDialog(){
   const grip=`<span class="sgrip" data-grip title="Drag to reorder" aria-hidden="true">⋮⋮</span>`;
   const html=`
   <div class="sub" style="margin-bottom:10px">Drag the ⋮⋮ handle to reorder DF types, coverage groups, coverages and results. Add or remove options any time. Removing an option only hides it from the buttons — everything already logged stays in your data and analytics.</div>
-  <h3>Team name</h3><div class="inl" style="margin-top:0"><input type="text" id="cTeam" value="${esc(c.team)}"><button class="btn" data-c="team">Save</button></div>
-  <h3 style="margin-top:18px">DF types</h3><div class="chips" data-sort="types">${c.dfTypes.map((t,i)=>`<span class="chip type on" data-i="${i}" style="${colStyle(tcolor(t))};min-height:34px;padding:4px 6px 4px 4px">${grip}${cpick("types",t,tcolor(t),COL().types[t])}${esc(t)} <button class="pill x" style="--c:rgba(0,0,0,.35);border:0" data-c="rmtype" data-i="${i}">✕</button></span>`).join("")}</div>
-  <div class="inl"><input type="text" id="cType" placeholder="New DF type, e.g. 1-3-1 Zone"><button class="btn" data-c="addtype">Add type</button></div>
+  <h3><label for="cTeam">Team name</label></h3><div class="inl" style="margin-top:0"><input type="text" id="cTeam" value="${esc(c.team)}"><button class="btn" data-c="team" aria-label="Save team name">Save</button></div>
+  <h3 style="margin-top:18px">DF types</h3><div class="chips" data-sort="types">${c.dfTypes.map((t,i)=>`<span class="chip type on" data-i="${i}" style="${colStyle(tcolor(t))};min-height:34px;padding:4px 6px 4px 4px">${grip}${cpick("types",t,tcolor(t),COL().types[t])}${esc(t)} <button class="pill x" style="--c:rgba(0,0,0,.35);border:0" data-c="rmtype" data-i="${i}" aria-label="Remove DF type ${esc(t)}">✕</button></span>`).join("")}</div>
+  <div class="inl"><input type="text" id="cType" aria-label="New DF type" placeholder="New DF type, e.g. 1-3-1 Zone"><button class="btn" data-c="addtype">Add type</button></div>
   <h3 style="margin-top:18px">DF coverage</h3>
-  <div data-sort="groups">${c.coverages.map((g,gi)=>`<div class="gbox" data-i="${gi}"><div><span style="display:flex;gap:8px;align-items:center">${grip}${cpick("groups",g.group,gcolor(g.group),COL().groups[g.group])}<b style="color:${gcolor(g.group)}">${esc(g.group)}</b></span><button class="btn sm danger" data-c="rmgroup" data-gi="${gi}">Remove group</button></div>
-    <div class="chips" data-sort="items" data-gi="${gi}">${g.items.map((it,ii)=>`<span class="chip on" data-i="${ii}" style="${colStyle(kcolor(gKey(g.group,it)))};min-height:34px;padding:4px 6px 4px 4px">${grip}${cpick("items",gKey(g.group,it),kcolor(gKey(g.group,it)),COL().items[gKey(g.group,it)])}${esc(it)} <button class="pill x" style="--c:rgba(0,0,0,.35);border:0" data-c="rmitem" data-gi="${gi}" data-ii="${ii}">✕</button></span>`).join("")||'<span class="sub">No items</span>'}</div>
-    <div class="inl"><input type="text" data-newitem="${gi}" placeholder="Add coverage to ${esc(g.group)}"><button class="btn" data-c="additem" data-gi="${gi}">Add</button></div></div>`).join("")}</div>
-  <div class="inl"><input type="text" id="cGroup" placeholder="New coverage group, e.g. BASELINE DF"><button class="btn" data-c="addgroup">Add group</button></div>
+  <div data-sort="groups">${c.coverages.map((g,gi)=>`<div class="gbox" data-i="${gi}"><div><span style="display:flex;gap:8px;align-items:center">${grip}${cpick("groups",g.group,gcolor(g.group),COL().groups[g.group])}<b style="color:${gcolor(g.group)}">${esc(g.group)}</b></span><button class="btn sm danger" data-c="rmgroup" data-gi="${gi}" aria-label="Remove group ${esc(g.group)}">Remove group</button></div>
+    <div class="chips" data-sort="items" data-gi="${gi}">${g.items.map((it,ii)=>`<span class="chip on" data-i="${ii}" style="${colStyle(kcolor(gKey(g.group,it)))};min-height:34px;padding:4px 6px 4px 4px">${grip}${cpick("items",gKey(g.group,it),kcolor(gKey(g.group,it)),COL().items[gKey(g.group,it)])}${esc(it)} <button class="pill x" style="--c:rgba(0,0,0,.35);border:0" data-c="rmitem" data-gi="${gi}" data-ii="${ii}" aria-label="Remove coverage ${esc(it)} from ${esc(g.group)}">✕</button></span>`).join("")||'<span class="sub">No items</span>'}</div>
+    <div class="inl"><input type="text" data-newitem="${gi}" aria-label="New coverage for ${esc(g.group)}" placeholder="Add coverage to ${esc(g.group)}"><button class="btn" data-c="additem" data-gi="${gi}" aria-label="Add coverage to ${esc(g.group)}">Add</button></div></div>`).join("")}</div>
+  <div class="inl"><input type="text" id="cGroup" aria-label="New coverage group" placeholder="New coverage group, e.g. BASELINE DF"><button class="btn" data-c="addgroup">Add group</button></div>
   <h3 style="margin-top:18px">Results</h3>
-  <div class="chips" data-sort="results">${c.results.map((r,i)=>`<span class="chip res k-${rmeta(r).kind} on" data-i="${i}" style="${colStyle(rcolor(r))};min-height:34px;padding:4px 6px 4px 4px">${grip}${cpick("results",r,rcolor(r),COL().results[r])}${esc(r)} <span style="font-weight:400;font-size:12px;opacity:.9">${rmeta(r).kind==="score"?rmeta(r).pts+" pts":esc(KINDS[rmeta(r).kind].split(" (")[0])}</span> <button class="pill x" style="--c:rgba(0,0,0,.35);border:0" data-c="rmres" data-i="${i}">✕</button></span>`).join("")}</div>
-  <div class="inl"><input type="text" id="cRes" placeholder="New result, e.g. FT 1" style="max-width:170px">
-    <select id="cKind">${Object.entries(KINDS).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join("")}</select>
-    <input type="number" id="cPts" min="0" max="6" value="0" style="max-width:80px" title="Points allowed (for 'Opp. scored')"><button class="btn" data-c="addres">Add result</button></div>
+  <div class="chips" data-sort="results">${c.results.map((r,i)=>`<span class="chip res k-${rmeta(r).kind} on" data-i="${i}" style="${colStyle(rcolor(r))};min-height:34px;padding:4px 6px 4px 4px">${grip}${cpick("results",r,rcolor(r),COL().results[r])}${esc(r)} <span style="font-weight:400;font-size:12px;opacity:.9">${rmeta(r).kind==="score"?rmeta(r).pts+" pts":esc(KINDS[rmeta(r).kind].split(" (")[0])}</span> <button class="pill x" style="--c:rgba(0,0,0,.35);border:0" data-c="rmres" data-i="${i}" aria-label="Remove result ${esc(r)}">✕</button></span>`).join("")}</div>
+  <div class="inl"><input type="text" id="cRes" aria-label="New result name" placeholder="New result, e.g. FT 1" style="max-width:170px">
+    <select id="cKind" aria-label="New result type">${Object.entries(KINDS).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join("")}</select>
+    <input type="number" id="cPts" min="0" max="6" value="0" style="max-width:80px" title="Points allowed (for 'Opp. scored')" aria-label="Points allowed (for Opp. scored results)"><button class="btn" data-c="addres">Add result</button></div>
   <div class="note" style="margin-top:6px">The type tells the analysis how to count it: <b>Stop</b> / <b>Forced turnover</b> = good DF possession, <b>Opp. scored</b> adds its points to PPP, <b>Our def. rebound</b> counts toward DREB%, <b>Opp. off. rebound</b> counts as OREB allowed and cancels a prior stop, <b>Foul</b> counts as a foul.</div>`;
   openDlg("Customize DF options",html);
 }
@@ -650,8 +679,8 @@ function dataDialog(){
   openDlg("Data & backup",`
   <div class="card" style="box-shadow:none"><b>Your data lives in this browser.</b><div class="note">It's saved automatically on this device, but clearing browser data or switching phone/laptop will not carry it over. Download a backup after each game (and keep it somewhere safe).</div></div>
   <div class="chips">
-   <button class="btn pri" id="bkJson">⬇ Backup everything (.json)</button>
-   <label class="btn">⬆ Restore backup<input type="file" id="restore" accept=".json,application/json" hidden></label></div>
+   <button class="btn pri" id="bkJson"><span aria-hidden="true">⬇</span> Backup everything (.json)</button>
+   <button type="button" class="btn" id="restoreBtn"><span aria-hidden="true">⬆</span> Restore backup</button><input type="file" id="restore" accept=".json,application/json" hidden aria-label="Backup file to restore"></div>
   <h3 style="margin-top:16px">Spreadsheet export (.csv)</h3>
   <div class="chips"><button class="btn" id="csvGame">This game</button><button class="btn" id="csvAll">All games</button></div>
   <h3 style="margin-top:16px">Other</h3>
@@ -659,6 +688,7 @@ function dataDialog(){
   $("#bkJson").onclick=()=>download(`df-poss-log-backup-${today()}.json`,JSON.stringify({app:"df-poss-log",v:1,state:{cfg:S.cfg,games:S.games}},null,1),"application/json");
   $("#csvGame").onclick=()=>download(`${G().opp.replace(/\W+/g,"_")}-df-log.csv`,csvFor([G()]),"text/csv");
   $("#csvAll").onclick=()=>download(`season-df-log.csv`,csvFor(S.games),"text/csv");
+  $("#restoreBtn").onclick=()=>$("#restore").click();
   $("#restore").onchange=async e=>{const f=e.target.files[0];if(!f)return;
     try{const j=JSON.parse(await f.text());const st=j.state||j;if(!st.cfg||!Array.isArray(st.games))throw 0;
       if(!confirm(`Restore backup with ${st.games.length} game(s)? This replaces what's currently in this browser.`))return;
@@ -713,19 +743,19 @@ function renderPoss(){
   let n=0,pts=0;
   const seg=(p,fn)=>p.segs.length?p.segs.map(sg=>`<div class="sg">${fn(sg)}</div>`).join(""):'<span class="sub">—</span>';
   const rows=g.poss.map((p,i)=>{const evs=p.segs.map(evalSeg);n+=evs.length;const pp=evs.reduce((t,e)=>t+e.pts,0);pts+=pp;
-    return `<tr><td class="n">${i+1}</td><td>${p.half==="1"?"1st":p.half==="2"?"2nd":esc(p.half)}</td><td class="n"><b>${esc(p.clock||"—")}</b></td><td>${seg(p,coverLine)}</td><td>${seg(p,sg=>`<div class="mini">${sg.results.map(r=>resPill(r)).join("")||"—"}</div>`)}</td><td>${seg(p,sg=>esc((sg.plays||[]).join(", "))||"—")}</td><td class="n"><b>${pp}</b></td><td class="n">${n?fx(pts/n):"—"}</td><td>${esc(p.notes)}</td><td style="white-space:nowrap"><button class="btn sm" data-ins="${p.id}" title="Add a missed possession right after this one">＋ Insert</button> <button class="btn sm" data-edit="${p.id}">Edit</button> <button class="btn sm danger" data-del="${p.id}" aria-label="Delete">✕</button></td></tr>`}).join("");
-  el.innerHTML=h+`<div style="margin-bottom:10px"><button class="btn sm" id="sortClock">⇅ Sort by half &amp; clock</button> <span class="sub">Forgot one? Tap ＋ Insert on the row it goes after, or sort by clock.</span></div><div class="tw"><table><thead><tr><th class="n">#</th><th>Half</th><th>Clock</th><th>Coverage</th><th>Result</th><th>Play</th><th class="n">Pts</th><th class="n">Run PPP</th><th>Notes</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`}
+    return `<tr><td class="n">${i+1}</td><td>${p.half==="1"?"1st":p.half==="2"?"2nd":esc(p.half)}</td><td class="n"><b>${esc(p.clock||"—")}</b></td><td>${seg(p,coverLine)}</td><td>${seg(p,sg=>`<div class="mini">${sg.results.map(r=>resPill(r)).join("")||"—"}</div>`)}</td><td>${seg(p,sg=>esc((sg.plays||[]).join(", "))||"—")}</td><td class="n"><b>${pp}</b></td><td class="n">${n?fx(pts/n):"—"}</td><td>${esc(p.notes)}</td><td style="white-space:nowrap"><button class="btn sm" data-ins="${p.id}" title="Add a missed possession right after this one" aria-label="Insert a possession after #${i+1}"><span aria-hidden="true">＋</span> Insert</button> <button class="btn sm" data-edit="${p.id}" aria-label="Edit possession #${i+1}">Edit</button> <button class="btn sm danger" data-del="${p.id}" aria-label="Delete possession #${i+1}">✕</button></td></tr>`}).join("");
+  el.innerHTML=h+`<div style="margin-bottom:10px"><button class="btn sm" id="sortClock"><span aria-hidden="true">⇅</span> Sort by half &amp; clock</button> <span class="sub">Forgot one? Tap ＋ Insert on the row it goes after, or sort by clock.</span></div><div class="tw"><table><thead><tr><th class="n">#</th><th>Half</th><th>Clock</th><th>Coverage</th><th>Result</th><th>Play</th><th class="n">Pts</th><th class="n">Run PPP</th><th>Notes</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`}
 $("#p-poss").addEventListener("click",e=>{
   const ins=e.target.closest("[data-ins]");
   if(ins){const d=D();if(d.editId){toast("Finish or cancel the edit first");return}
     d.after=ins.dataset.ins;const g=G(),i=g.poss.findIndex(x=>x.id===d.after);if(i>=0)d.half=g.poss[i].half;
-    save();syncInputs();renderSegs();setTab("log");toast(`Next possession goes right after #${i+1}`);return}
+    save();syncInputs();renderSegs();setTab("log");$("#clock").focus({preventScroll:true});toast(`Next possession goes right after #${i+1}`);return}
   if(e.target.id==="sortClock"){const g=G();
     const secs=c=>{const m=/^(\d+):(\d\d)$/.exec((c||"").trim());return m?+m[1]*60+ +m[2]:null};
     const hr=h=>h==="1"?1:h==="2"?2:3;
     if(g.poss.some(x=>secs(x.clock)===null)){toast("Every possession needs a clock (like 12:34) to sort");return}
     if(!confirm("Re-order all possessions by half and game clock (most time remaining first)?"))return;
-    g.poss.sort((a,b)=>hr(a.half)-hr(b.half)||secs(b.clock)-secs(a.clock));save();renderPoss();toast("Sorted by half and clock")}});
+    g.poss.sort((a,b)=>hr(a.half)-hr(b.half)||secs(b.clock)-secs(a.clock));save();renderPoss();$("#sortClock")?.focus({preventScroll:true});toast("Sorted by half and clock")}});
 function renderAll(){renderHeader();renderSegs();renderLog();if(S.ui.tab==="poss")renderPoss();if(S.ui.tab==="game")renderGame();if(S.ui.tab==="season")renderSeason()}
 applyTheme();syncInputs();renderAll();setTab(S.ui.tab);
 if("serviceWorker" in navigator){/* intentionally none: single static file */}
